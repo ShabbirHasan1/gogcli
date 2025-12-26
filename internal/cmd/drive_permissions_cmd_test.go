@@ -117,3 +117,69 @@ func TestDrivePermissionsCmd_TextAndJSON(t *testing.T) {
 		t.Fatalf("unexpected json: %#v", parsed)
 	}
 }
+
+func TestDrivePermissionsCmd_OmitsEmptyPageToken(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/files/id1/permissions"):
+			if r.URL.Query().Get("pageSize") != "1" {
+				t.Fatalf("expected pageSize=1, got: %q", r.URL.RawQuery)
+			}
+			if _, ok := r.URL.Query()["pageToken"]; ok {
+				t.Fatalf("expected pageToken omitted, got: %q", r.URL.RawQuery)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"permissions": []map[string]any{
+					{"id": "p1", "type": "user", "role": "owner", "emailAddress": "a@b.com"},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	flags := &rootFlags{Account: "a@b.com"}
+	ctx := outfmt.WithMode(context.Background(), outfmt.Mode{JSON: true})
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx = ui.WithUI(ctx, u)
+
+	out := captureStdout(t, func() {
+		cmd := newDrivePermissionsCmd(flags)
+		cmd.SetContext(ctx)
+		cmd.SetArgs([]string{"--max", "1", "id1"})
+		if execErr := cmd.Execute(); execErr != nil {
+			t.Fatalf("execute: %v", execErr)
+		}
+	})
+
+	var parsed struct {
+		PermissionCount int                 `json:"permissionCount"`
+		Permissions     []*drive.Permission `json:"permissions"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("json parse: %v out=%q", err, out)
+	}
+	if parsed.PermissionCount != 1 || len(parsed.Permissions) != 1 {
+		t.Fatalf("unexpected json: %#v", parsed)
+	}
+}

@@ -707,13 +707,18 @@ func newDrivePermissionsCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
-			resp, err := svc.Permissions.List(fileID).
-				PageSize(max).
-				PageToken(page).
+			call := svc.Permissions.List(fileID).
 				SupportsAllDrives(true).
 				Fields("nextPageToken, permissions(id, type, role, emailAddress)").
-				Context(cmd.Context()).
-				Do()
+				Context(cmd.Context())
+			if max > 0 {
+				call = call.PageSize(max)
+			}
+			if strings.TrimSpace(page) != "" {
+				call = call.PageToken(page)
+			}
+
+			resp, err := call.Do()
 			if err != nil {
 				return err
 			}
