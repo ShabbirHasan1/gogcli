@@ -268,10 +268,11 @@ func newDriveGetCmd(flags *rootFlags) *cobra.Command {
 
 func newDriveDownloadCmd(flags *rootFlags) *cobra.Command {
 	var outPathFlag string
+	var format string
 
 	cmd := &cobra.Command{
 		Use:   "download <fileId>",
-		Short: "Download a file (Google Docs exported)",
+		Short: "Download a file (exports Google Docs formats)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			u := ui.FromContext(cmd.Context())
@@ -316,7 +317,7 @@ func newDriveDownloadCmd(flags *rootFlags) *cobra.Command {
 				destPath = filepath.Join(destPath, defaultName)
 			}
 
-			downloadedPath, size, err := downloadDriveFile(cmd.Context(), svc, meta, destPath)
+			downloadedPath, size, err := downloadDriveFile(cmd.Context(), svc, meta, destPath, format)
 			if err != nil {
 				return err
 			}
@@ -335,6 +336,7 @@ func newDriveDownloadCmd(flags *rootFlags) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&outPathFlag, "out", "", "Output file path (default: gogcli config dir)")
+	cmd.Flags().StringVar(&format, "format", "", "Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png (default: auto)")
 	return cmd
 }
 
@@ -941,7 +943,7 @@ func guessMimeType(path string) string {
 	}
 }
 
-func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File, destPath string) (string, int64, error) {
+func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File, destPath string, format string) (string, int64, error) {
 	isGoogleDoc := strings.HasPrefix(meta.MimeType, "application/vnd.google-apps.")
 
 	var (
@@ -951,7 +953,16 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 	)
 
 	if isGoogleDoc {
-		exportMimeType := driveExportMimeType(meta.MimeType)
+		exportMimeType := ""
+		if strings.TrimSpace(format) == "" {
+			exportMimeType = driveExportMimeType(meta.MimeType)
+		} else {
+			var mimeErr error
+			exportMimeType, mimeErr = driveExportMimeTypeForFormat(meta.MimeType, format)
+			if mimeErr != nil {
+				return "", 0, mimeErr
+			}
+		}
 		outPath = replaceExt(destPath, driveExportExtension(exportMimeType))
 		resp, err = driveExportDownload(ctx, svc, meta.Id, exportMimeType)
 	} else {
@@ -1009,12 +1020,69 @@ func driveExportMimeType(googleMimeType string) string {
 	}
 }
 
+func driveExportMimeTypeForFormat(googleMimeType string, format string) (string, error) {
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format == "" {
+		return driveExportMimeType(googleMimeType), nil
+	}
+
+	switch googleMimeType {
+	case "application/vnd.google-apps.document":
+		switch format {
+		case "pdf":
+			return "application/pdf", nil
+		case "txt":
+			return "text/plain", nil
+		default:
+			return "", fmt.Errorf("invalid --format %q for Google Doc (use pdf|txt)", format)
+		}
+	case "application/vnd.google-apps.spreadsheet":
+		switch format {
+		case "pdf":
+			return "application/pdf", nil
+		case "csv":
+			return "text/csv", nil
+		case "xlsx":
+			return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nil
+		default:
+			return "", fmt.Errorf("invalid --format %q for Google Sheet (use pdf|csv|xlsx)", format)
+		}
+	case "application/vnd.google-apps.presentation":
+		switch format {
+		case "pdf":
+			return "application/pdf", nil
+		case "pptx":
+			return "application/vnd.openxmlformats-officedocument.presentationml.presentation", nil
+		default:
+			return "", fmt.Errorf("invalid --format %q for Google Slides (use pdf|pptx)", format)
+		}
+	case "application/vnd.google-apps.drawing":
+		switch format {
+		case "png":
+			return "image/png", nil
+		case "pdf":
+			return "application/pdf", nil
+		default:
+			return "", fmt.Errorf("invalid --format %q for Google Drawing (use png|pdf)", format)
+		}
+	default:
+		if format == "pdf" {
+			return "application/pdf", nil
+		}
+		return "", fmt.Errorf("invalid --format %q for file type %q (use pdf)", format, googleMimeType)
+	}
+}
+
 func driveExportExtension(mimeType string) string {
 	switch mimeType {
 	case "application/pdf":
 		return ".pdf"
 	case "text/csv":
 		return ".csv"
+	case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+		return ".xlsx"
+	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+		return ".pptx"
 	case "image/png":
 		return ".png"
 	case "text/plain":

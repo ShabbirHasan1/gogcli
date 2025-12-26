@@ -193,3 +193,80 @@ func TestDriveDownloadCmd_FileHasNoName(t *testing.T) {
 		t.Fatalf("expected file has no name error, got: %v", execErr)
 	}
 }
+
+func TestExecute_DriveDownload_GoogleSheet_PDF(t *testing.T) {
+	origNew := newDriveService
+	origExport := driveExportDownload
+	t.Cleanup(func() {
+		newDriveService = origNew
+		driveExportDownload = origExport
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Metadata fetch (Do()).
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       "sheet1",
+			"name":     "Sheet Name",
+			"mimeType": "application/vnd.google-apps.spreadsheet",
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	var gotMime string
+	driveExportDownload = func(_ context.Context, _ *drive.Service, fileID string, mimeType string) (*http.Response, error) {
+		if fileID != "sheet1" {
+			t.Fatalf("fileID=%q", fileID)
+		}
+		gotMime = mimeType
+		return &http.Response{
+			Status:     "200 OK",
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("%PDF-FAKE")),
+		}, nil
+	}
+
+	dest := filepath.Join(t.TempDir(), "out")
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "drive", "download", "sheet1", "--format", "pdf", "--out", dest}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if gotMime != "application/pdf" {
+		t.Fatalf("mimeType=%q", gotMime)
+	}
+
+	var parsed struct {
+		Path string `json:"path"`
+		Size int64  `json:"size"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, out)
+	}
+	if !strings.HasSuffix(parsed.Path, ".pdf") {
+		t.Fatalf("expected .pdf path, got %q", parsed.Path)
+	}
+	if parsed.Size != int64(len("%PDF-FAKE")) {
+		t.Fatalf("size=%d", parsed.Size)
+	}
+	if b, err := os.ReadFile(parsed.Path); err != nil || string(b) != "%PDF-FAKE" {
+		t.Fatalf("file mismatch: err=%v body=%q", err, string(b))
+	}
+}
