@@ -2,10 +2,13 @@
 
 ## 0.2.2 - Unreleased
 
+### Added
+
+- Calendar: `gog calendar calendars` and `gog calendar acl` now support `--max` and `--page` (JSON includes `nextPageToken`).
+
 ### Changed
 
 - macOS: always trust the `gog` binary in Keychain (removed `GOG_KEYCHAIN_TRUST_APPLICATION`).
-- Calendar: add `--max` + `--page` to `gog calendar calendars` and `gog calendar acl`.
 
 ## 0.2.1 - 2025-12-26
 
