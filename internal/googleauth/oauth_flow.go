@@ -184,14 +184,22 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 
 	select {
 	case code := <-codeCh:
-		_ = srv.Close()
 		tok, exchangeErr := cfg.Exchange(ctx, code)
 		if exchangeErr != nil {
+			_ = srv.Close()
 			return "", exchangeErr
 		}
 		if tok.RefreshToken == "" {
+			_ = srv.Close()
 			return "", errors.New("no refresh token received; try again with --force-consent")
 		}
+		// Keep server running 30 seconds after success to show success screen
+		// Use select to allow cancellation via Ctrl+C
+		select {
+		case <-time.After(30 * time.Second):
+		case <-ctx.Done():
+		}
+		_ = srv.Close()
 		return tok.RefreshToken, nil
 	case err := <-errCh:
 		_ = srv.Close()
