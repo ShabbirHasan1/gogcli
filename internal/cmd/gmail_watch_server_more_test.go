@@ -309,6 +309,92 @@ func TestGmailWatchServer_SendHook_UpdatesState(t *testing.T) {
 	}
 }
 
+func TestGmailWatchServer_ServeHTTP_HookError(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		s.HistoryID = "100"
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	gmailSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/history"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"historyId": "200",
+				"history": []map[string]any{
+					{"messagesAdded": []map[string]any{{"message": map[string]any{"id": "m1"}}}},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"snippet":  "hi",
+				"payload":  map[string]any{"headers": []map[string]any{}},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer gmailSrv.Close()
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(gmailSrv.Client()),
+		option.WithEndpoint(gmailSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	hookSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer hookSrv.Close()
+
+	server := &gmailWatchServer{
+		cfg: gmailWatchServeConfig{
+			Account:    "a@b.com",
+			Path:       "/hook",
+			HookURL:    hookSrv.URL,
+			HistoryMax: 10,
+			ResyncMax:  10,
+		},
+		store:      store,
+		newService: func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
+		hookClient: hookSrv.Client(),
+		logf:       func(string, ...any) {},
+		warnf:      func(string, ...any) {},
+	}
+
+	push := pubsubPushEnvelope{}
+	push.Message.Data = base64.StdEncoding.EncodeToString([]byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	body, _ := json.Marshal(push)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/hook", bytes.NewReader(body))
+	server.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: %d", rr.Code)
+	}
+	if store.Get().LastDeliveryStatus != "http_error" {
+		t.Fatalf("unexpected state: %#v", store.Get())
+	}
+}
+
 func TestIsStaleHistoryError(t *testing.T) {
 	err := &gapi.Error{Code: http.StatusNotFound, Message: "HistoryId not found"}
 	if !isStaleHistoryError(err) {

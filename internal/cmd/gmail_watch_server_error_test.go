@@ -78,3 +78,42 @@ func TestGmailWatchServer_ServeHTTP_EmptyHistoryID(t *testing.T) {
 		t.Fatalf("status: %d", rr.Code)
 	}
 }
+
+func TestGmailWatchServer_ServeHTTP_EmailMismatch(t *testing.T) {
+	s := &gmailWatchServer{
+		cfg:   gmailWatchServeConfig{Path: "/hook", Account: "a@b.com"},
+		store: &gmailWatchStore{},
+		logf:  func(string, ...any) {},
+		warnf: func(string, ...any) {},
+	}
+
+	push := pubsubPushEnvelope{}
+	push.Message.Data = base64.StdEncoding.EncodeToString([]byte(`{"emailAddress":"b@b.com","historyId":"10"}`))
+	body, _ := json.Marshal(push)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/hook", bytes.NewReader(body))
+	s.ServeHTTP(rr, req)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("status: %d", rr.Code)
+	}
+}
+
+func TestGmailWatchServer_ServeHTTP_InvalidBase64(t *testing.T) {
+	s := &gmailWatchServer{
+		cfg:   gmailWatchServeConfig{Path: "/hook"},
+		logf:  func(string, ...any) {},
+		warnf: func(string, ...any) {},
+	}
+
+	push := pubsubPushEnvelope{}
+	push.Message.Data = "!!!"
+	body, _ := json.Marshal(push)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/hook", bytes.NewReader(body))
+	s.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status: %d", rr.Code)
+	}
+}

@@ -56,4 +56,13 @@ func TestErrors_Messages(t *testing.T) {
 	if got := (&PermissionDeniedError{Resource: "file", Action: "delete"}).Error(); got != "permission denied: cannot delete file" {
 		t.Fatalf("unexpected: %q", got)
 	}
+	if got := (&CircuitBreakerError{}).Error(); got == "" {
+		t.Fatalf("expected circuit breaker message")
+	}
+	if got := (&QuotaExceededError{Resource: "drive"}).Error(); got != "API quota exceeded for drive" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	if got := (&QuotaExceededError{}).Error(); got != "API quota exceeded" {
+		t.Fatalf("unexpected: %q", got)
+	}
 }

@@ -33,6 +33,12 @@ func TestParseGoogleOAuthClientJSON(t *testing.T) {
 			t.Fatalf("expected error")
 		}
 	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		if _, err := ParseGoogleOAuthClientJSON([]byte("{")); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
 }
 
 func TestClientCredentials_Roundtrip(t *testing.T) {
@@ -61,5 +67,32 @@ func TestClientCredentials_Roundtrip(t *testing.T) {
 	}
 	if out.ClientID != in.ClientID || out.ClientSecret != in.ClientSecret {
 		t.Fatalf("mismatch: %#v != %#v", out, in)
+	}
+}
+
+func TestReadClientCredentials_Errors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	_, err := ReadClientCredentials()
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if _, ok := err.(*CredentialsMissingError); !ok {
+		t.Fatalf("expected CredentialsMissingError, got %T", err)
+	}
+
+	path, pathErr := ClientCredentialsPath()
+	if pathErr != nil {
+		t.Fatalf("ClientCredentialsPath: %v", pathErr)
+	}
+	if _, dirErr := EnsureDir(); dirErr != nil {
+		t.Fatalf("EnsureDir: %v", dirErr)
+	}
+	if writeErr := os.WriteFile(path, []byte(`{"client_id":""}`), 0o600); writeErr != nil {
+		t.Fatalf("write: %v", writeErr)
+	}
+	if _, err := ReadClientCredentials(); err == nil {
+		t.Fatalf("expected missing field error")
 	}
 }
