@@ -3,6 +3,7 @@ package googleapi
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -45,7 +46,7 @@ func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email
 	}
 	tok, err := store.GetToken(email)
 	if err != nil {
-		if err == keyring.ErrKeyNotFound {
+		if errors.Is(err, keyring.ErrKeyNotFound) {
 			return nil, &AuthRequiredError{Service: serviceLabel, Email: email, Cause: err}
 		}
 		return nil, err

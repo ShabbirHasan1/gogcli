@@ -39,3 +39,23 @@ func TestWriteJSON(t *testing.T) {
 		t.Fatalf("expected output")
 	}
 }
+
+func TestFromEnvAndParseError(t *testing.T) {
+	t.Setenv("GOG_JSON", "yes")
+	t.Setenv("GOG_PLAIN", "0")
+	mode := FromEnv()
+	if !mode.JSON || mode.Plain {
+		t.Fatalf("unexpected env mode: %#v", mode)
+	}
+
+	if err := (&ParseError{msg: "boom"}).Error(); err != "boom" {
+		t.Fatalf("unexpected parse error: %q", err)
+	}
+}
+
+func TestFromContext_WrongType(t *testing.T) {
+	ctx := context.WithValue(context.Background(), ctxKey{}, "nope")
+	if got := FromContext(ctx); got != (Mode{}) {
+		t.Fatalf("expected zero mode, got %#v", got)
+	}
+}

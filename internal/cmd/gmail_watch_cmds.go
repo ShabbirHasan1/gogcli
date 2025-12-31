@@ -17,7 +17,10 @@ import (
 	"google.golang.org/api/idtoken"
 )
 
-var newOIDCValidator = idtoken.NewValidator
+var (
+	newOIDCValidator = idtoken.NewValidator
+	listenAndServe   = func(srv *http.Server) error { return srv.ListenAndServe() }
+)
 
 func newGmailWatchCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
@@ -347,7 +350,7 @@ func newGmailWatchServeCmd(flags *rootFlags) *cobra.Command {
 				Handler:           server,
 				ReadHeaderTimeout: 5 * time.Second,
 			}
-			return httpServer.ListenAndServe()
+			return listenAndServe(httpServer)
 		},
 	}
 

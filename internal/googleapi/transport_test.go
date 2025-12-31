@@ -2,6 +2,7 @@ package googleapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -45,6 +46,9 @@ func TestRetryTransport_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
@@ -68,6 +72,9 @@ func TestRetryTransport_RateLimit_Retry(t *testing.T) {
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
 	}
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200 after retry, got %d", resp.StatusCode)
@@ -97,6 +104,9 @@ func TestRetryTransport_RateLimit_MaxRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if resp.StatusCode != 429 {
 		t.Errorf("expected 429 after max retries, got %d", resp.StatusCode)
 	}
@@ -121,6 +131,9 @@ func TestRetryTransport_ServerError_Retry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200 after retry, got %d", resp.StatusCode)
 	}
@@ -142,6 +155,9 @@ func TestRetryTransport_ClientError_NoRetry(t *testing.T) {
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
 	}
 	if resp.StatusCode != 404 {
 		t.Errorf("expected 404, got %d", resp.StatusCode)
@@ -170,9 +186,12 @@ func TestRetryTransport_ContextCanceled(t *testing.T) {
 		cancel()
 	}()
 
-	_, err := rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
 }
@@ -187,7 +206,10 @@ func TestRetryTransport_CircuitBreakerOpen(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "https://example.com", nil)
-	_, err := rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
 	if err == nil {
 		t.Fatal("expected error when circuit breaker is open")
@@ -217,6 +239,9 @@ func TestRetryTransport_CircuitBreakerReset(t *testing.T) {
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
 	}
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -250,6 +275,9 @@ func TestRetryTransport_RetryAfterHeader(t *testing.T) {
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
 	}
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -297,10 +325,37 @@ func TestRetryTransport_WithRequestBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200 after retry, got %d", resp.StatusCode)
 	}
 	if mock.calls != 2 {
 		t.Errorf("expected 2 calls, got %d", mock.calls)
+	}
+}
+
+func TestEnsureReplayableBody(t *testing.T) {
+	req, _ := http.NewRequest("POST", "https://example.com", io.NopCloser(strings.NewReader("hello")))
+	if req.GetBody != nil {
+		t.Fatalf("expected nil GetBody")
+	}
+	if err := ensureReplayableBody(req); err != nil {
+		t.Fatalf("ensureReplayableBody: %v", err)
+	}
+	if req.GetBody == nil {
+		t.Fatalf("expected GetBody to be set")
+	}
+	first, _ := io.ReadAll(req.Body)
+	_ = req.Body.Close()
+	body, err := req.GetBody()
+	if err != nil {
+		t.Fatalf("GetBody: %v", err)
+	}
+	second, _ := io.ReadAll(body)
+	_ = body.Close()
+	if string(first) != "hello" || string(second) != "hello" {
+		t.Fatalf("unexpected body replay: %q %q", string(first), string(second))
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"testing"
@@ -27,7 +28,8 @@ func TestMainExitOnError(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected exit error")
 	}
-	if ee, ok := err.(*exec.ExitError); ok {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
 		if ee.ExitCode() != 2 {
 			t.Fatalf("exit=%d", ee.ExitCode())
 		}

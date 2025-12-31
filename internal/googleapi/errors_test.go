@@ -30,6 +30,14 @@ func TestErrors_IsHelpers(t *testing.T) {
 }
 
 func TestErrors_Messages(t *testing.T) {
+	base := errors.New("base")
+	authErr := &AuthRequiredError{Service: "gmail", Email: "a@b.com", Cause: base}
+	if got := authErr.Error(); got != "auth required for gmail a@b.com" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	if !errors.Is(authErr, base) {
+		t.Fatalf("expected unwrap to match base")
+	}
 	if got := (&RateLimitError{RetryAfter: 2 * time.Second, Retries: 3}).Error(); !strings.Contains(got, "retry after 2s") {
 		t.Fatalf("unexpected: %q", got)
 	}

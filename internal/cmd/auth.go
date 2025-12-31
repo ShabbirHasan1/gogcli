@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	openSecretsStore = secrets.OpenDefault
-	authorizeGoogle  = googleauth.Authorize
+	openSecretsStore  = secrets.OpenDefault
+	authorizeGoogle   = googleauth.Authorize
+	startManageServer = googleauth.StartManageServer
 )
 
 func newAuthCmd(flags *rootFlags) *cobra.Command {
@@ -526,7 +527,7 @@ func newAuthManageCmd() *cobra.Command {
 				}
 			}
 
-			return googleauth.StartManageServer(cmd.Context(), googleauth.ManageServerOptions{
+			return startManageServer(cmd.Context(), googleauth.ManageServerOptions{
 				Timeout:      timeout,
 				Services:     services,
 				ForceConsent: forceConsent,

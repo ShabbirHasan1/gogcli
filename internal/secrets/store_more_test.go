@@ -33,3 +33,30 @@ func TestParseTokenKey_RejectsEmpty(t *testing.T) {
 		t.Fatalf("expected not ok")
 	}
 }
+
+func TestFileKeyringPasswordFuncFrom(t *testing.T) {
+	pf := fileKeyringPasswordFuncFrom("secret", false)
+	got, err := pf("prompt")
+	if err != nil || got != "secret" {
+		t.Fatalf("expected secret, got %q err=%v", got, err)
+	}
+
+	pf = fileKeyringPasswordFuncFrom("", true)
+	if pf == nil {
+		t.Fatalf("expected terminal prompt func")
+	}
+
+	pf = fileKeyringPasswordFuncFrom("", false)
+	if _, err := pf("prompt"); err == nil {
+		t.Fatalf("expected error without tty")
+	}
+}
+
+func TestFileKeyringPasswordFunc(t *testing.T) {
+	t.Setenv(keyringPasswordEnv, "secret")
+	pf := fileKeyringPasswordFunc()
+	got, err := pf("prompt")
+	if err != nil || got != "secret" {
+		t.Fatalf("expected secret, got %q err=%v", got, err)
+	}
+}

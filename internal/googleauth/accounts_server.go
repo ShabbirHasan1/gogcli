@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 
 	"github.com/steipete/gogcli/internal/secrets"
 )
@@ -44,13 +43,15 @@ type ManageServer struct {
 	resultCh   chan error
 }
 
+var openDefaultStore = secrets.OpenDefault
+
 // StartManageServer starts the accounts management server and opens browser
 func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 	if opts.Timeout <= 0 {
 		opts.Timeout = 10 * time.Minute
 	}
 
-	store, err := secrets.OpenDefault()
+	store, err := openDefaultStore()
 	if err != nil {
 		return fmt.Errorf("failed to open secrets store: %w", err)
 	}
@@ -109,7 +110,7 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 
 	fmt.Fprintln(os.Stderr, "Opening accounts manager in browser...")
 	fmt.Fprintln(os.Stderr, "If the browser doesn't open, visit:", url)
-	_ = openBrowser(url)
+	_ = openBrowserFn(url)
 
 	select {
 	case err := <-ms.resultCh:
@@ -206,7 +207,7 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 	cfg := oauth2.Config{
 		ClientID:     creds.ClientID,
 		ClientSecret: creds.ClientSecret,
-		Endpoint:     google.Endpoint,
+		Endpoint:     oauthEndpoint,
 		RedirectURL:  redirectURI,
 		Scopes:       scopes,
 	}
@@ -258,7 +259,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 	cfg := oauth2.Config{
 		ClientID:     creds.ClientID,
 		ClientSecret: creds.ClientSecret,
-		Endpoint:     google.Endpoint,
+		Endpoint:     oauthEndpoint,
 		RedirectURL:  redirectURI,
 		Scopes:       scopes,
 	}
