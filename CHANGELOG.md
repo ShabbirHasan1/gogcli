@@ -140,7 +140,7 @@ Initial public release of `gog`: a single Go CLI that unifies Gmail, Calendar, D
   - Linting via pinned `golangci-lint` with repo config.
   - Tests using stdlib `testing` + `httptest`, with steadily increased unit coverage.
   - GitHub Actions CI running format checks, tests, and lint.
-  - `pnpm gog` helper to build+run (`pnpm gog auth add you@gmail.com`).
+  - `make` builds `./bin/gog` for local dev (`make && ./bin/gog auth add you@gmail.com`).
 
 ### Notes / Known Limitations
 

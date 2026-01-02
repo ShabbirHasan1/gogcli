@@ -486,8 +486,6 @@ Useful pattern:
 
 - `gog --json ... | jq .`
 
-If you use `pnpm`, see the shortcut section for `pnpm -s` (silent) to keep stdout clean.
-
 ## Examples
 
 ### Search recent emails and download attachments
@@ -683,17 +681,18 @@ go test -tags=integration ./...
 
 Tip: if you want to avoid macOS Keychain prompts during these runs, set `GOG_KEYRING_BACKEND=file` and `GOG_KEYRING_PASSWORD=...` (uses encrypted on-disk keyring).
 
-### pnpm Shortcut
+### Make Shortcut
 
-Build and run in one step:
+Build and run:
 
 ```bash
-pnpm gog auth add you@gmail.com
+make
+./bin/gog auth add you@gmail.com
 ```
 
 For clean stdout when scripting:
 
-- `pnpm -s gog --json gmail search "from:me" | jq .`
+- `./bin/gog --json gmail search "from:me" | jq .`
 
 ## License
 
