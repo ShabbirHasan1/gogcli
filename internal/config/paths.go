@@ -1,9 +1,11 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const AppName = "gogcli"
@@ -120,6 +122,17 @@ func GmailWatchDir() (string, error) {
 }
 
 func KeepServiceAccountPath(email string) (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+
+	safeEmail := base64.RawURLEncoding.EncodeToString([]byte(strings.ToLower(strings.TrimSpace(email))))
+
+	return filepath.Join(dir, fmt.Sprintf("keep-sa-%s.json", safeEmail)), nil
+}
+
+func KeepServiceAccountLegacyPath(email string) (string, error) {
 	dir, err := Dir()
 	if err != nil {
 		return "", err

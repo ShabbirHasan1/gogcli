@@ -1,6 +1,6 @@
 # 🧭 gogcli — Google in your terminal.
 
-Google in your terminal - CLI for Gmail, Calendar, Drive, Contacts, Tasks, and Sheets.
+Google in your terminal - CLI for Gmail, Calendar, Drive, Contacts, Tasks, Sheets, and Keep (Workspace-only).
 
 ## Features
 
@@ -12,6 +12,7 @@ Google in your terminal - CLI for Gmail, Calendar, Drive, Contacts, Tasks, and S
 - **Sheets** - read/write/update spreadsheets, create new sheets (and export via Drive)
 - **Docs/Slides** - export to PDF/DOCX/PPTX via Drive (plus create/copy, docs-to-text)
 - **People** - access profile information
+- **Keep (Workspace only)** - list/get/search notes and download attachments (service account + domain-wide delegation)
 - **Multiple account support** - manage multiple Google accounts simultaneously
 - **Secure credential storage** using OS keyring (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows)
 - **Auto-refreshing tokens** - authenticate once, use indefinitely
@@ -122,7 +123,9 @@ gog auth list
 
 ### Service Scopes
 
-By default, `gog auth add` requests access to all services (gmail, calendar, drive, contacts, tasks, sheets, people). To request fewer scopes:
+By default, `gog auth add` requests access to the **user** services (gmail, calendar, drive, contacts, tasks, sheets, people).
+
+To request fewer scopes:
 
 ```bash
 gog auth add you@gmail.com --services drive,calendar
@@ -131,9 +134,21 @@ gog auth add you@gmail.com --services drive,calendar
 If you need to add services later and Google doesn't return a refresh token, re-run with `--force-consent`:
 
 ```bash
-gog auth add you@gmail.com --services all --force-consent
+gog auth add you@gmail.com --services user --force-consent
 # Or add just Sheets
 gog auth add you@gmail.com --services sheets --force-consent
+```
+
+`--services all` is accepted as an alias for `user` for backwards compatibility.
+
+### Google Keep (Workspace only)
+
+The Google Keep API requires a service account with domain-wide delegation (Workspace).
+
+```bash
+gog auth keep you@yourdomain.com --key ~/Downloads/service-account.json
+gog keep list --account you@yourdomain.com
+gog keep get <noteId> --account you@yourdomain.com
 ```
 
 ### Environment Variables
@@ -201,10 +216,20 @@ Options:
 ```bash
 gog auth credentials <path>           # Store OAuth client credentials
 gog auth add <email>                  # Authorize and store refresh token
+gog auth keep <email> --key <path>    # Configure service account for Keep (Workspace only)
 gog auth list                         # List stored accounts
 gog auth remove <email>               # Remove a stored refresh token
 gog auth manage                       # Open accounts manager in browser
 gog auth tokens                       # Manage stored refresh tokens
+```
+
+### Keep (Workspace only)
+
+```bash
+gog keep list --account you@yourdomain.com
+gog keep get <noteId> --account you@yourdomain.com
+gog keep search <query> --account you@yourdomain.com
+gog keep attachment <attachmentName> --account you@yourdomain.com --out ./attachment.bin
 ```
 
 ### Gmail

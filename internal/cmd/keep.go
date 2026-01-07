@@ -16,7 +16,6 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-var newKeepService = googleapi.NewKeep
 var newKeepServiceWithSA = googleapi.NewKeepWithServiceAccount
 
 type KeepCmd struct {
@@ -247,11 +246,13 @@ func (c *KeepAttachmentCmd) Run(ctx context.Context, flags *RootFlags, keep *Kee
 		outPath = parts[len(parts)-1]
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("create output directory: %w", err)
+	if dir := filepath.Dir(outPath); dir != "." {
+		if mkdirErr := os.MkdirAll(dir, 0o700); mkdirErr != nil && !os.IsExist(mkdirErr) {
+			return fmt.Errorf("create output directory: %w", mkdirErr)
+		}
 	}
 
-	f, err := os.Create(outPath)
+	f, err := os.Create(outPath) //nolint:gosec // user-provided output path
 	if err != nil {
 		return fmt.Errorf("create output file: %w", err)
 	}
@@ -297,5 +298,12 @@ func getKeepService(ctx context.Context, flags *RootFlags, keepCmd *KeepCmd) (*k
 		return newKeepServiceWithSA(ctx, saPath, account)
 	}
 
-	return newKeepService(ctx, account)
+	legacyPath, legacyErr := config.KeepServiceAccountLegacyPath(account)
+	if legacyErr == nil {
+		if _, statErr := os.Stat(legacyPath); statErr == nil {
+			return newKeepServiceWithSA(ctx, legacyPath, account)
+		}
+	}
+
+	return nil, usage("Keep is Workspace-only and requires a service account. Configure it with: gog auth keep <email> --key <service-account.json>")
 }

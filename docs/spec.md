@@ -130,7 +130,8 @@ Environment:
 ### Implemented
 
 - `gog auth credentials <credentials.json|->`
-- `gog auth add <email> [--services all|gmail,calendar,drive,contacts,tasks,people] [--manual] [--force-consent]`
+- `gog auth add <email> [--services user|all|gmail,calendar,drive,contacts,tasks,sheets,people] [--manual] [--force-consent]`
+- `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`
 - `gog auth status`
 - `gog auth remove <email>`

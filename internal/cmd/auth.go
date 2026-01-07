@@ -303,29 +303,15 @@ type AuthAddCmd struct {
 	Email        string `arg:"" name:"email" help:"Email"`
 	Manual       bool   `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
 	ForceConsent bool   `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
-	ServicesCSV  string `name:"services" help:"Services to authorize: all or comma-separated gmail,calendar,drive,contacts,tasks,sheets,people" default:"all"`
+	ServicesCSV  string `name:"services" help:"Services to authorize: user|all or comma-separated gmail,calendar,drive,contacts,tasks,sheets,people (Keep uses service account: gog auth keep)" default:"user"`
 }
 
 func (c *AuthAddCmd) Run(ctx context.Context) error {
 	u := ui.FromContext(ctx)
 
-	var services []googleauth.Service
-	if strings.EqualFold(strings.TrimSpace(c.ServicesCSV), "") || strings.EqualFold(strings.TrimSpace(c.ServicesCSV), "all") {
-		services = googleauth.AllServices()
-	} else {
-		parts := strings.Split(c.ServicesCSV, ",")
-		seen := make(map[googleauth.Service]struct{})
-		for _, p := range parts {
-			svc, err := googleauth.ParseService(p)
-			if err != nil {
-				return err
-			}
-			if _, ok := seen[svc]; ok {
-				continue
-			}
-			seen[svc] = struct{}{}
-			services = append(services, svc)
-		}
+	services, err := parseAuthServices(c.ServicesCSV)
+	if err != nil {
+		return err
 	}
 	if len(services) == 0 {
 		return fmt.Errorf("no services selected")
@@ -523,28 +509,14 @@ func (c *AuthRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type AuthManageCmd struct {
 	ForceConsent bool          `name:"force-consent" help:"Force consent screen when adding accounts"`
-	ServicesCSV  string        `name:"services" help:"Services to authorize: all or comma-separated gmail,calendar,drive,contacts,tasks,sheets,people" default:"all"`
+	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated gmail,calendar,drive,contacts,tasks,sheets,people (Keep uses service account: gog auth keep)" default:"user"`
 	Timeout      time.Duration `name:"timeout" help:"Server timeout duration" default:"10m"`
 }
 
 func (c *AuthManageCmd) Run(ctx context.Context) error {
-	var services []googleauth.Service
-	if strings.EqualFold(strings.TrimSpace(c.ServicesCSV), "") || strings.EqualFold(strings.TrimSpace(c.ServicesCSV), "all") {
-		services = googleauth.AllServices()
-	} else {
-		parts := strings.Split(c.ServicesCSV, ",")
-		seen := make(map[googleauth.Service]struct{})
-		for _, p := range parts {
-			svc, err := googleauth.ParseService(p)
-			if err != nil {
-				return err
-			}
-			if _, ok := seen[svc]; ok {
-				continue
-			}
-			seen[svc] = struct{}{}
-			services = append(services, svc)
-		}
+	services, err := parseAuthServices(c.ServicesCSV)
+	if err != nil {
+		return err
 	}
 
 	return startManageServer(ctx, googleauth.ManageServerOptions{
@@ -578,8 +550,8 @@ func (c *AuthKeepCmd) Run(ctx context.Context) error {
 	}
 
 	var saJSON map[string]any
-	if err := json.Unmarshal(data, &saJSON); err != nil {
-		return fmt.Errorf("invalid service account JSON: %w", err)
+	if unmarshalErr := json.Unmarshal(data, &saJSON); unmarshalErr != nil {
+		return fmt.Errorf("invalid service account JSON: %w", unmarshalErr)
 	}
 	if saJSON["type"] != "service_account" {
 		return fmt.Errorf("invalid service account JSON: expected type=service_account")
@@ -609,4 +581,31 @@ func (c *AuthKeepCmd) Run(ctx context.Context) error {
 	u.Out().Printf("path\t%s", destPath)
 	u.Out().Println("Keep service account configured. Use: gog keep list --account " + email)
 	return nil
+}
+
+func parseAuthServices(servicesCSV string) ([]googleauth.Service, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(servicesCSV))
+	if trimmed == "" || trimmed == "user" || trimmed == "all" {
+		return googleauth.UserServices(), nil
+	}
+
+	parts := strings.Split(servicesCSV, ",")
+	seen := make(map[googleauth.Service]struct{})
+	out := make([]googleauth.Service, 0, len(parts))
+	for _, p := range parts {
+		svc, err := googleauth.ParseService(p)
+		if err != nil {
+			return nil, err
+		}
+		if svc == googleauth.ServiceKeep {
+			return nil, usage("Keep auth is Workspace-only and requires a service account. Use: gog auth keep <email> --key <service-account.json>")
+		}
+		if _, ok := seen[svc]; ok {
+			continue
+		}
+		seen[svc] = struct{}{}
+		out = append(out, svc)
+	}
+
+	return out, nil
 }

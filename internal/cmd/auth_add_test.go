@@ -113,3 +113,69 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 		t.Error("authorizeGoogle should not be called when keychain check fails")
 	}
 }
+
+func TestAuthAddCmd_DefaultServices_UserPreset(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+
+	store := newMemSecretsStore()
+	openSecretsStore = func() (secrets.Store, error) { return store, nil }
+
+	var gotOpts googleauth.AuthorizeOptions
+	authorizeGoogle = func(ctx context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+		gotOpts = opts
+		return "rt", nil
+	}
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "auth", "add", "user@example.com"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	want := googleauth.UserServices()
+	if len(gotOpts.Services) != len(want) {
+		t.Fatalf("unexpected services: %v", gotOpts.Services)
+	}
+	for _, s := range gotOpts.Services {
+		if s == googleauth.ServiceKeep {
+			t.Fatalf("unexpected keep in services: %v", gotOpts.Services)
+		}
+	}
+}
+
+func TestAuthAddCmd_KeepRejected(t *testing.T) {
+	origAuth := authorizeGoogle
+	t.Cleanup(func() { authorizeGoogle = origAuth })
+
+	authorizeCalled := false
+	authorizeGoogle = func(context.Context, googleauth.AuthorizeOptions) (string, error) {
+		authorizeCalled = true
+		return "", nil
+	}
+
+	err := Execute([]string{"auth", "add", "user@example.com", "--services", "keep"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var ee *ExitError
+	if !errors.As(err, &ee) || ee.Code != 2 {
+		t.Fatalf("expected exit code 2, got %T %#v", err, err)
+	}
+	if !strings.Contains(err.Error(), "Keep auth") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if authorizeCalled {
+		t.Fatalf("authorizeGoogle should not be called")
+	}
+}

@@ -23,7 +23,7 @@ func NewKeep(ctx context.Context, email string) (*keep.Service, error) {
 }
 
 func NewKeepWithServiceAccount(ctx context.Context, serviceAccountPath, impersonateEmail string) (*keep.Service, error) {
-	data, err := os.ReadFile(serviceAccountPath)
+	data, err := os.ReadFile(serviceAccountPath) //nolint:gosec // user-provided path (or stored config file)
 	if err != nil {
 		return nil, fmt.Errorf("read service account file: %w", err)
 	}

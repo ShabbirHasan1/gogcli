@@ -18,6 +18,8 @@
 - Gmail: `gog gmail thread attachments` list/download attachments (#27) — thanks @salmonumbrella.
 - Gmail: `gog gmail thread get --full` shows complete bodies (default truncates) (#25) — thanks @salmonumbrella.
 - Gmail: reorganize `gog gmail --help` into sections and add `gog gmail settings ...` (old subcommands remain available).
+- Keep: add Workspace-only Google Keep support (service account + domain-wide delegation) (#32) — thanks @koala73.
+- Auth: `gog auth add` now defaults to `--services user` (`--services all` accepted as an alias for backwards compatibility).
 
 ## 0.4.2 - 2025-12-31
 

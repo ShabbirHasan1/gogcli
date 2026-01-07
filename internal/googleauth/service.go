@@ -31,8 +31,13 @@ func ParseService(s string) (Service, error) {
 	}
 }
 
+// UserServices are the default OAuth services intended for consumer ("regular") accounts.
+func UserServices() []Service {
+	return []Service{ServiceGmail, ServiceCalendar, ServiceDrive, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets}
+}
+
 func AllServices() []Service {
-	return []Service{ServiceGmail, ServiceCalendar, ServiceDrive, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceKeep}
+	return append(UserServices(), ServiceKeep)
 }
 
 func Scopes(service Service) ([]string, error) {

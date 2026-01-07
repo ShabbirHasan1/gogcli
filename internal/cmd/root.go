@@ -169,7 +169,7 @@ func boolString(v bool) string {
 }
 
 func helpDescription() string {
-	desc := "Google CLI for Gmail/Calendar/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"
+	desc := "Google CLI for Gmail/Calendar/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Keep"
 
 	configPath, err := config.ConfigPath()
 	configLine := "unknown"
