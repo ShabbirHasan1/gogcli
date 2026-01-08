@@ -346,7 +346,13 @@ func (c *ContactsOtherDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return confirmErr
 	}
 
-	// Step 1: Copy the other contact to My Contacts group
+	if err := deleteOtherContact(ctx, account, resourceName); err != nil {
+		return err
+	}
+	return writeDeleteResult(ctx, u, resourceName)
+}
+
+func deleteOtherContact(ctx context.Context, account, resourceName string) error {
 	otherSvc, err := newPeopleOtherContactsService(ctx, account)
 	if err != nil {
 		return err
@@ -358,23 +364,20 @@ func (c *ContactsOtherDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 	if err != nil {
 		return fmt.Errorf("copy to my contacts: %w", err)
 	}
-	if copied == nil || strings.TrimSpace(copied.ResourceName) == "" {
+	copiedResource := ""
+	if copied != nil {
+		copiedResource = strings.TrimSpace(copied.ResourceName)
+	}
+	if copiedResource == "" {
 		return fmt.Errorf("copy to my contacts: empty resource name")
 	}
 
-	// Step 2: Delete the copied contact from My Contacts
 	contactsSvc, err := newPeopleContactsService(ctx, account)
 	if err != nil {
 		return err
 	}
-	if _, err := contactsSvc.People.DeleteContact(copied.ResourceName).Do(); err != nil {
-		return fmt.Errorf("delete copied contact %s: %w", copied.ResourceName, err)
+	if _, err := contactsSvc.People.DeleteContact(copiedResource).Do(); err != nil {
+		return fmt.Errorf("delete copied contact %s: %w", copiedResource, err)
 	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": true, "resource": resourceName})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("resource\t%s", resourceName)
 	return nil
 }

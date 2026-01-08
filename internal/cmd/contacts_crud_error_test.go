@@ -17,11 +17,38 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func TestContactsListAndGet_NoResults_Text(t *testing.T) {
-	origContacts := newPeopleContactsService
-	t.Cleanup(func() { newPeopleContactsService = origContacts })
+func newPeopleService(t *testing.T, handler http.HandlerFunc) (*people.Service, func()) {
+	t.Helper()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(handler)
+	svc, err := people.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		srv.Close()
+		t.Fatalf("NewService: %v", err)
+	}
+	return svc, srv.Close
+}
+
+func stubPeopleServices(t *testing.T, svc *people.Service) {
+	t.Helper()
+
+	origOther := newPeopleOtherContactsService
+	origContacts := newPeopleContactsService
+	t.Cleanup(func() {
+		newPeopleOtherContactsService = origOther
+		newPeopleContactsService = origContacts
+	})
+
+	newPeopleOtherContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+}
+
+func TestContactsListAndGet_NoResults_Text(t *testing.T) {
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "people/me/connections") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
@@ -36,17 +63,8 @@ func TestContactsListAndGet_NoResults_Text(t *testing.T) {
 			return
 		}
 	}))
-	defer srv.Close()
-
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
 
 	flags := &RootFlags{Account: "a@b.com"}
 	errOut := captureStderr(t, func() {
@@ -98,15 +116,8 @@ func TestContactsOtherDelete_InvalidResource(t *testing.T) {
 }
 
 func TestContactsOtherDelete_Success_JSON(t *testing.T) {
-	origOther := newPeopleOtherContactsService
-	origContacts := newPeopleContactsService
-	t.Cleanup(func() {
-		newPeopleOtherContactsService = origOther
-		newPeopleContactsService = origContacts
-	})
-
 	copiedResourceName := "people/c123456"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "otherContacts/") && strings.Contains(r.URL.Path, ":copyOtherContactToMyContactsGroup") && r.Method == http.MethodPost:
 			// Mock CopyOtherContactToMyContactsGroup response
@@ -126,18 +137,8 @@ func TestContactsOtherDelete_Success_JSON(t *testing.T) {
 			return
 		}
 	}))
-	defer srv.Close()
-
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newPeopleOtherContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
-	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
 
 	flags := &RootFlags{Account: "a@b.com", Force: true}
 	ctx := outfmt.WithMode(context.Background(), outfmt.Mode{JSON: true})
@@ -161,15 +162,8 @@ func TestContactsOtherDelete_Success_JSON(t *testing.T) {
 }
 
 func TestContactsOtherDelete_Success_Text(t *testing.T) {
-	origOther := newPeopleOtherContactsService
-	origContacts := newPeopleContactsService
-	t.Cleanup(func() {
-		newPeopleOtherContactsService = origOther
-		newPeopleContactsService = origContacts
-	})
-
 	copiedResourceName := "people/c789"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "otherContacts/") && strings.Contains(r.URL.Path, ":copyOtherContactToMyContactsGroup") && r.Method == http.MethodPost:
 			w.Header().Set("Content-Type", "application/json")
@@ -186,18 +180,8 @@ func TestContactsOtherDelete_Success_Text(t *testing.T) {
 			return
 		}
 	}))
-	defer srv.Close()
-
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newPeopleOtherContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
-	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
 
 	flags := &RootFlags{Account: "a@b.com", Force: true}
 
@@ -225,14 +209,7 @@ func TestContactsOtherDelete_Success_Text(t *testing.T) {
 }
 
 func TestContactsOtherDelete_CopyFailure(t *testing.T) {
-	origOther := newPeopleOtherContactsService
-	origContacts := newPeopleContactsService
-	t.Cleanup(func() {
-		newPeopleOtherContactsService = origOther
-		newPeopleContactsService = origContacts
-	})
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "otherContacts/") && strings.Contains(r.URL.Path, ":copyOtherContactToMyContactsGroup") && r.Method == http.MethodPost:
 			// Return error for copy operation
@@ -249,18 +226,8 @@ func TestContactsOtherDelete_CopyFailure(t *testing.T) {
 			return
 		}
 	}))
-	defer srv.Close()
-
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newPeopleOtherContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
-	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
 
 	flags := &RootFlags{Account: "a@b.com", Force: true}
 
@@ -274,14 +241,7 @@ func TestContactsOtherDelete_CopyFailure(t *testing.T) {
 }
 
 func TestContactsOtherDelete_CopyMissingResource(t *testing.T) {
-	origOther := newPeopleOtherContactsService
-	origContacts := newPeopleContactsService
-	t.Cleanup(func() {
-		newPeopleOtherContactsService = origOther
-		newPeopleContactsService = origContacts
-	})
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "otherContacts/") && strings.Contains(r.URL.Path, ":copyOtherContactToMyContactsGroup") && r.Method == http.MethodPost:
 			w.Header().Set("Content-Type", "application/json")
@@ -292,18 +252,8 @@ func TestContactsOtherDelete_CopyMissingResource(t *testing.T) {
 			return
 		}
 	}))
-	defer srv.Close()
-
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newPeopleOtherContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
-	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
 
 	flags := &RootFlags{Account: "a@b.com", Force: true}
 
@@ -317,15 +267,8 @@ func TestContactsOtherDelete_CopyMissingResource(t *testing.T) {
 }
 
 func TestContactsOtherDelete_DeleteFailure(t *testing.T) {
-	origOther := newPeopleOtherContactsService
-	origContacts := newPeopleContactsService
-	t.Cleanup(func() {
-		newPeopleOtherContactsService = origOther
-		newPeopleContactsService = origContacts
-	})
-
 	copiedResourceName := "people/c999"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "otherContacts/") && strings.Contains(r.URL.Path, ":copyOtherContactToMyContactsGroup") && r.Method == http.MethodPost:
 			// Copy succeeds
@@ -349,18 +292,8 @@ func TestContactsOtherDelete_DeleteFailure(t *testing.T) {
 			return
 		}
 	}))
-	defer srv.Close()
-
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newPeopleOtherContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
-	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
 
 	flags := &RootFlags{Account: "a@b.com", Force: true}
 

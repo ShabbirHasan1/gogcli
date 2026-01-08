@@ -313,10 +313,5 @@ func (c *ContactsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if _, err := svc.People.DeleteContact(resourceName).Do(); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": true, "resource": resourceName})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("resource\t%s", resourceName)
-	return nil
+	return writeDeleteResult(ctx, u, resourceName)
 }
