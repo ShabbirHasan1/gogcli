@@ -1,15 +1,16 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"golang.org/x/term"
 
+	"github.com/steipete/gogcli/internal/input"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -30,9 +31,12 @@ func confirmDestructive(ctx context.Context, flags *RootFlags, action string) er
 		_, _ = fmt.Fprintln(os.Stderr, prompt)
 	}
 
-	line, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, readErr := input.ReadLine(os.Stdin)
 	if readErr != nil && !errors.Is(readErr, os.ErrClosed) {
-		return readErr
+		if errors.Is(readErr, io.EOF) {
+			return &ExitError{Code: 1, Err: errors.New("cancelled")}
+		}
+		return fmt.Errorf("read confirmation: %w", readErr)
 	}
 	ans := strings.TrimSpace(strings.ToLower(line))
 	if ans == "y" || ans == "yes" {

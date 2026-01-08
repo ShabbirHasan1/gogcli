@@ -1,14 +1,12 @@
 package googleauth
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,6 +18,7 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/input"
 )
 
 type AuthorizeOptions struct {
@@ -100,8 +99,8 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 		fmt.Fprintln(os.Stderr, "Copy the URL from your browser's address bar and paste it here.")
 		fmt.Fprintln(os.Stderr)
 
-		fmt.Fprint(os.Stderr, "Paste redirect URL: ")
-		line, readErr := readLine(os.Stdin)
+		fmt.Fprint(os.Stderr, "Paste redirect URL (Enter or Ctrl-D): ")
+		line, readErr := input.ReadLine(os.Stdin)
 
 		if readErr != nil && !errors.Is(readErr, os.ErrClosed) {
 			return "", fmt.Errorf("read redirect url: %w", readErr)
@@ -283,37 +282,6 @@ func extractCodeAndState(rawURL string) (code string, state string, err error) {
 		return "", "", errNoCodeInURL
 	} else {
 		return code, parsed.Query().Get("state"), nil
-	}
-}
-
-// readLine reads a single line from r, handling EOF without newline gracefully.
-// It supports both Unix (\n) and Windows (\r\n) line endings.
-// If the input ends with EOF before a newline, the accumulated content is returned.
-func readLine(r io.Reader) (string, error) {
-	br := bufio.NewReader(r)
-
-	var sb strings.Builder
-	for {
-		b, err := br.ReadByte()
-		if err != nil {
-			if errors.Is(err, io.EOF) && sb.Len() > 0 {
-				return sb.String(), nil
-			}
-
-			return "", fmt.Errorf("read byte: %w", err)
-		}
-
-		if b == '\n' || b == '\r' {
-			if b == '\r' {
-				if next, _ := br.Peek(1); len(next) == 1 && next[0] == '\n' {
-					_, _ = br.ReadByte()
-				}
-			}
-
-			return sb.String(), nil
-		}
-
-		sb.WriteByte(b)
 	}
 }
 

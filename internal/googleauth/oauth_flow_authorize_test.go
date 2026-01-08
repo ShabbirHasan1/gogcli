@@ -133,6 +133,7 @@ func TestAuthorize_Manual_Success_NoNewline(t *testing.T) {
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
 	origStdin := os.Stdin
+
 	t.Cleanup(func() { os.Stdin = origStdin })
 
 	var r *os.File

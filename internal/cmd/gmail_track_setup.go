@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -9,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/steipete/gogcli/internal/input"
 	"github.com/steipete/gogcli/internal/tracking"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -32,7 +32,7 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if c.WorkerURL == "" && !flags.NoInput {
 		u.Err().Println("Tracking worker base URL (e.g. https://...workers.dev): ")
-		line, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
+		line, readErr := input.ReadLine(os.Stdin)
 		if readErr == nil {
 			c.WorkerURL = strings.TrimSpace(line)
 		}
