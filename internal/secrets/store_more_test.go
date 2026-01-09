@@ -17,10 +17,11 @@ func TestKeyringStore_ListDeleteDefault(t *testing.T) {
 	store := &KeyringStore{ring: ring}
 
 	tok1 := Token{Email: "a@b.com", RefreshToken: "rt1", CreatedAt: time.Now()}
-	tok2 := Token{Email: "c@d.com", RefreshToken: "rt2", CreatedAt: time.Now()}
 	if err := store.SetToken(tok1.Email, tok1); err != nil {
 		t.Fatalf("SetToken: %v", err)
 	}
+
+	tok2 := Token{Email: "c@d.com", RefreshToken: "rt2", CreatedAt: time.Now()}
 	if err := store.SetToken(tok2.Email, tok2); err != nil {
 		t.Fatalf("SetToken: %v", err)
 	}
@@ -94,17 +95,14 @@ func TestWrapKeychainError(t *testing.T) {
 
 func TestFileKeyringPasswordFuncFrom(t *testing.T) {
 	fn := fileKeyringPasswordFuncFrom("pw", false)
-	got, err := fn("prompt")
-	if err != nil {
+	if got, err := fn("prompt"); err != nil {
 		t.Fatalf("expected password, got err: %v", err)
-	}
-	if got != "pw" {
+	} else if got != "pw" {
 		t.Fatalf("unexpected password: %q", got)
 	}
 
 	fn = fileKeyringPasswordFuncFrom("", false)
-	_, err = fn("prompt")
-	if err == nil || !errors.Is(err, errNoTTY) {
+	if _, err := fn("prompt"); err == nil || !errors.Is(err, errNoTTY) {
 		t.Fatalf("expected no TTY error, got: %v", err)
 	}
 }

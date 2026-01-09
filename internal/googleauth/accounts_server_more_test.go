@@ -20,6 +20,7 @@ func TestHandleAccountsPage(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
+
 	if !strings.Contains(rec.Body.String(), "csrf123") {
 		t.Fatalf("expected csrf token in page")
 	}
@@ -51,6 +52,7 @@ func TestFetchUserEmailDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fetchUserEmailDefault: %v", err)
 	}
+
 	if email != "a@b.com" {
 		t.Fatalf("unexpected email: %q", email)
 	}

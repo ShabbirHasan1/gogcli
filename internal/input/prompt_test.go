@@ -26,6 +26,7 @@ func TestPromptLineFrom(t *testing.T) {
 	if line != "hello" {
 		t.Fatalf("unexpected line: %q", line)
 	}
+
 	if !strings.Contains(stderr.String(), "Prompt: ") {
 		t.Fatalf("expected prompt in stderr: %q", stderr.String())
 	}
@@ -55,6 +56,7 @@ func TestPromptLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PromptLine: %v", err)
 	}
+
 	if line != "world" {
 		t.Fatalf("unexpected line: %q", line)
 	}
