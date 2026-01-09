@@ -50,6 +50,7 @@ var (
 	errInvalidKeyringBackend = errors.New("invalid keyring backend")
 	errKeyringTimeout        = errors.New("keyring connection timed out")
 	openKeyringFunc          = openKeyring
+	keyringOpenFunc          = keyring.Open
 )
 
 type KeyringBackendInfo struct {
@@ -135,6 +136,14 @@ func normalizeKeyringBackend(value string) string {
 // is installed but not running.
 const keyringOpenTimeout = 5 * time.Second
 
+func shouldForceFileBackend(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
+	return goos == "linux" && backendInfo.Value == "auto" && dbusAddr == ""
+}
+
+func shouldUseKeyringTimeout(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
+	return goos == "linux" && backendInfo.Value == "auto" && dbusAddr != ""
+}
+
 func openKeyring() (keyring.Keyring, error) {
 	// On Linux/WSL/containers, OS keychains (secret-service/kwallet) may be unavailable.
 	// In that case github.com/99designs/keyring falls back to the "file" backend,
@@ -154,10 +163,11 @@ func openKeyring() (keyring.Keyring, error) {
 		return nil, err
 	}
 
+	dbusAddr := os.Getenv("DBUS_SESSION_BUS_ADDRESS")
 	// On Linux with "auto" backend and no D-Bus session, force file backend.
 	// Without DBUS_SESSION_BUS_ADDRESS, SecretService will hang indefinitely
 	// trying to connect (common on headless systems like Raspberry Pi).
-	if runtime.GOOS != "darwin" && backendInfo.Value == "auto" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
+	if shouldForceFileBackend(runtime.GOOS, backendInfo, dbusAddr) {
 		backends = []keyring.BackendType{keyring.FileBackend}
 	}
 
@@ -169,14 +179,14 @@ func openKeyring() (keyring.Keyring, error) {
 		FilePasswordFunc:         fileKeyringPasswordFunc(),
 	}
 
-	// On non-Darwin platforms with D-Bus present, keyring.Open() can still hang
-	// if SecretService is unresponsive (e.g., gnome-keyring installed but not running).
+	// On Linux with D-Bus present, keyring.Open() can still hang if SecretService
+	// is unresponsive (e.g., gnome-keyring installed but not running).
 	// Use a timeout as a safety net.
-	if runtime.GOOS != "darwin" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") != "" {
+	if shouldUseKeyringTimeout(runtime.GOOS, backendInfo, dbusAddr) {
 		return openKeyringWithTimeout(cfg, keyringOpenTimeout)
 	}
 
-	ring, err := keyring.Open(cfg)
+	ring, err := keyringOpenFunc(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("open keyring: %w", err)
 	}
@@ -200,7 +210,7 @@ func openKeyringWithTimeout(cfg keyring.Config, timeout time.Duration) (keyring.
 	ch := make(chan keyringResult, 1)
 
 	go func() {
-		ring, err := keyring.Open(cfg)
+		ring, err := keyringOpenFunc(cfg)
 		ch <- keyringResult{ring, err}
 	}()
 

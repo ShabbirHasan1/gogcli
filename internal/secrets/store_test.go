@@ -122,6 +122,63 @@ func TestAllowedBackends_Invalid(t *testing.T) {
 	}
 }
 
+func TestKeyringDbusGuards(t *testing.T) {
+	tests := []struct {
+		name        string
+		goos        string
+		backend     string
+		dbusAddr    string
+		wantForce   bool
+		wantTimeout bool
+	}{
+		{
+			name:        "linux auto no dbus",
+			goos:        "linux",
+			backend:     "auto",
+			dbusAddr:    "",
+			wantForce:   true,
+			wantTimeout: false,
+		},
+		{
+			name:        "linux auto with dbus",
+			goos:        "linux",
+			backend:     "auto",
+			dbusAddr:    "unix:path=/run/user/1000/bus",
+			wantForce:   false,
+			wantTimeout: true,
+		},
+		{
+			name:        "windows auto no dbus",
+			goos:        "windows",
+			backend:     "auto",
+			dbusAddr:    "",
+			wantForce:   false,
+			wantTimeout: false,
+		},
+		{
+			name:        "linux explicit file no dbus",
+			goos:        "linux",
+			backend:     "file",
+			dbusAddr:    "",
+			wantForce:   false,
+			wantTimeout: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := KeyringBackendInfo{Value: tt.backend}
+			if got := shouldForceFileBackend(tt.goos, info, tt.dbusAddr); got != tt.wantForce {
+				t.Fatalf("shouldForceFileBackend=%v, want %v", got, tt.wantForce)
+			}
+
+			if got := shouldUseKeyringTimeout(tt.goos, info, tt.dbusAddr); got != tt.wantTimeout {
+				t.Fatalf("shouldUseKeyringTimeout=%v, want %v", got, tt.wantTimeout)
+			}
+		})
+	}
+}
+
 func TestOpenKeyringWithTimeout_Success(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -148,10 +205,6 @@ func TestOpenKeyringWithTimeout_Success(t *testing.T) {
 }
 
 func TestOpenKeyringWithTimeout_Timeout(t *testing.T) {
-	// Use a channel that never receives to simulate a hanging keyring.Open()
-	// We can't easily mock keyring.Open(), so we test with a very short timeout
-	// and a config that would normally work - the point is to verify the timeout
-	// error message format.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
@@ -165,20 +218,32 @@ func TestOpenKeyringWithTimeout_Timeout(t *testing.T) {
 
 	cfg := keyringConfig(keyringDir)
 
-	// Test with an extremely short timeout that the file backend can't beat
-	// Note: This test is a bit racy - if the file backend is fast enough, it passes anyway
-	// The main point is to verify the timeout path exists and produces the right error format
-	_, err = openKeyringWithTimeout(cfg, 1*time.Nanosecond)
+	blockCh := make(chan struct{})
+	originalOpen := keyringOpenFunc
+	keyringOpenFunc = func(_ keyring.Config) (keyring.Keyring, error) {
+		<-blockCh
+		return nil, errors.New("blocked")
+	}
+	t.Cleanup(func() { keyringOpenFunc = originalOpen })
 
-	// Either it succeeds (fast system) or times out with our message
-	if err != nil && !strings.Contains(err.Error(), "GOG_KEYRING_BACKEND=file") {
+	_, err = openKeyringWithTimeout(cfg, 10*time.Millisecond)
+	close(blockCh)
+	if err == nil {
+		t.Fatalf("expected timeout error")
+	}
+
+	if !errors.Is(err, errKeyringTimeout) {
+		t.Fatalf("expected keyring timeout error, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "GOG_KEYRING_BACKEND=file") {
 		t.Fatalf("expected timeout error with GOG_KEYRING_BACKEND guidance, got: %v", err)
 	}
 }
 
 func TestOpenKeyring_NoDBus_ForcesFileBackend(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("D-Bus detection only applies on non-Darwin platforms")
+	if runtime.GOOS != "linux" {
+		t.Skip("D-Bus detection only applies on Linux")
 	}
 
 	home := t.TempDir()
