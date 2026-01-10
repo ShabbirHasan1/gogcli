@@ -297,6 +297,57 @@ func TestScopesForManageWithOptions_SheetsReadonlyIncludesDriveReadonly(t *testi
 	}
 }
 
+func TestScopesForManageWithOptions_SheetsHonorsDriveScopeMode(t *testing.T) {
+	tests := []struct {
+		name      string
+		opts      ScopeOptions
+		wantDrive string
+		wantSheet string
+	}{
+		{
+			name:      "default",
+			opts:      ScopeOptions{},
+			wantDrive: "https://www.googleapis.com/auth/drive",
+			wantSheet: "https://www.googleapis.com/auth/spreadsheets",
+		},
+		{
+			name:      "drive_readonly",
+			opts:      ScopeOptions{DriveScope: DriveScopeReadonly},
+			wantDrive: "https://www.googleapis.com/auth/drive.readonly",
+			wantSheet: "https://www.googleapis.com/auth/spreadsheets",
+		},
+		{
+			name:      "drive_file",
+			opts:      ScopeOptions{DriveScope: DriveScopeFile},
+			wantDrive: "https://www.googleapis.com/auth/drive.file",
+			wantSheet: "https://www.googleapis.com/auth/spreadsheets",
+		},
+		{
+			name:      "readonly",
+			opts:      ScopeOptions{Readonly: true, DriveScope: DriveScopeFull},
+			wantDrive: "https://www.googleapis.com/auth/drive.readonly",
+			wantSheet: "https://www.googleapis.com/auth/spreadsheets.readonly",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scopes, err := ScopesForManageWithOptions([]Service{ServiceSheets}, tc.opts)
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+
+			if !containsScope(scopes, tc.wantDrive) {
+				t.Fatalf("missing %q in %v", tc.wantDrive, scopes)
+			}
+
+			if !containsScope(scopes, tc.wantSheet) {
+				t.Fatalf("missing %q in %v", tc.wantSheet, scopes)
+			}
+		})
+	}
+}
+
 func TestScopes_DocsIncludesDriveAndDocsScopes(t *testing.T) {
 	scopes, err := Scopes(ServiceDocs)
 	if err != nil {

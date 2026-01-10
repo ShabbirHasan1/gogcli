@@ -413,6 +413,62 @@ func TestAuthAddCmd_SheetsReadonlyIncludesDriveReadonly(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_SheetsDriveScopeFile(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	origFetch := fetchAuthorizedEmail
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+		fetchAuthorizedEmail = origFetch
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+
+	store := newMemSecretsStore()
+	openSecretsStore = func() (secrets.Store, error) { return store, nil }
+
+	var gotOpts googleauth.AuthorizeOptions
+	authorizeGoogle = func(ctx context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+		gotOpts = opts
+		gotOpts.Services = append([]googleauth.Service(nil), opts.Services...)
+		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
+		return "rt", nil
+	}
+	fetchAuthorizedEmail = func(context.Context, string, []string, time.Duration) (string, error) {
+		return "user@example.com", nil
+	}
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{
+				"--json",
+				"auth",
+				"add",
+				"user@example.com",
+				"--services",
+				"sheets",
+				"--drive-scope",
+				"file",
+			}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !containsStringInSlice(gotOpts.Scopes, "https://www.googleapis.com/auth/drive.file") {
+		t.Fatalf("missing drive.file in %v", gotOpts.Scopes)
+	}
+	if !containsStringInSlice(gotOpts.Scopes, "https://www.googleapis.com/auth/spreadsheets") {
+		t.Fatalf("missing spreadsheets in %v", gotOpts.Scopes)
+	}
+	if containsStringInSlice(gotOpts.Scopes, "https://www.googleapis.com/auth/drive") {
+		t.Fatalf("unexpected drive in %v", gotOpts.Scopes)
+	}
+}
+
 func containsStringInSlice(items []string, want string) bool {
 	for _, it := range items {
 		if it == want {
