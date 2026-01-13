@@ -24,7 +24,7 @@ const (
 
 type RootFlags struct {
 	Color   string `help:"Color output: auto|always|never" default:"${color}"`
-	Account string `help:"Account email for API commands (gmail/calendar/drive/docs/slides/contacts/tasks/people/sheets)"`
+	Account string `help:"Account email for API commands (gmail/calendar/classroom/drive/docs/slides/contacts/tasks/people/sheets)"`
 	JSON    bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}"`
 	Plain   bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}"`
 	Force   bool   `help:"Skip confirmations for destructive commands"`
@@ -43,6 +43,7 @@ type CLI struct {
 	Docs       DocsCmd       `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd     `cmd:"" help:"Google Slides"`
 	Calendar   CalendarCmd   `cmd:"" help:"Google Calendar"`
+	Classroom  ClassroomCmd  `cmd:"" help:"Google Classroom"`
 	Gmail      GmailCmd      `cmd:"" aliases:"mail,email" help:"Gmail"`
 	Contacts   ContactsCmd   `cmd:"" help:"Google Contacts"`
 	Tasks      TasksCmd      `cmd:"" help:"Google Tasks"`
@@ -174,7 +175,7 @@ func boolString(v bool) string {
 }
 
 func helpDescription() string {
-	desc := "Google CLI for Gmail/Calendar/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"
+	desc := "Google CLI for Gmail/Calendar/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"
 
 	configPath, err := config.ConfigPath()
 	configLine := "unknown"
