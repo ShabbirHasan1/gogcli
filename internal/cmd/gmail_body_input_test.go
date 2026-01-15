@@ -32,11 +32,11 @@ func TestResolveBodyInput_Stdin(t *testing.T) {
 	t.Cleanup(func() { os.Stdin = old })
 	os.Stdin = r
 
-	if _, err := w.Write([]byte("stdin body")); err != nil {
-		t.Fatalf("write: %v", err)
+	if _, writeErr := w.Write([]byte("stdin body")); writeErr != nil {
+		t.Fatalf("write: %v", writeErr)
 	}
-	if err := w.Close(); err != nil {
-		t.Fatalf("close: %v", err)
+	if closeErr := w.Close(); closeErr != nil {
+		t.Fatalf("close: %v", closeErr)
 	}
 
 	got, err := resolveBodyInput("", "-")
