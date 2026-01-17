@@ -87,7 +87,7 @@ func TestTasksAddCmd_RepeatCreatesMultiple(t *testing.T) {
 	if gotTitles[0] != "Task (#1/3)" || gotTitles[2] != "Task (#3/3)" {
 		t.Fatalf("unexpected titles: %#v", gotTitles)
 	}
-	if gotDue[0] != "2025-01-01" || gotDue[1] != "2025-01-02" || gotDue[2] != "2025-01-03" {
+	if gotDue[0] != "2025-01-01T00:00:00Z" || gotDue[1] != "2025-01-02T00:00:00Z" || gotDue[2] != "2025-01-03T00:00:00Z" {
 		t.Fatalf("unexpected due schedule: %#v", gotDue)
 	}
 

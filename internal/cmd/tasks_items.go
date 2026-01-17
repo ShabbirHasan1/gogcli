@@ -190,10 +190,14 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return svcErr
 		}
 		warnTasksDueTime(u, c.Due)
+		dueValue, dueErr := normalizeTaskDue(c.Due)
+		if dueErr != nil {
+			return dueErr
+		}
 		task := &tasks.Task{
 			Title: strings.TrimSpace(c.Title),
 			Notes: strings.TrimSpace(c.Notes),
-			Due:   strings.TrimSpace(c.Due),
+			Due:   dueValue,
 		}
 		call := svc.Tasks.Insert(tasklistID, task)
 		if strings.TrimSpace(c.Parent) != "" {
@@ -373,9 +377,13 @@ func (c *TasksUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Roo
 		changed = true
 	}
 	if flagProvided(kctx, "due") {
-		patch.Due = strings.TrimSpace(c.Due)
-		changed = true
 		warnTasksDueTime(u, c.Due)
+		dueValue, dueErr := normalizeTaskDue(c.Due)
+		if dueErr != nil {
+			return dueErr
+		}
+		patch.Due = dueValue
+		changed = true
 	}
 	if flagProvided(kctx, "status") {
 		patch.Status = strings.TrimSpace(c.Status)

@@ -18,3 +18,15 @@ func warnTasksDueTime(u *ui.UI, due string) {
 		u.Err().Println("Note: Google Tasks treats due dates as date-only; time components may be ignored.")
 	}
 }
+
+func normalizeTaskDue(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	parsed, hasTime, err := parseTaskDate(value)
+	if err != nil {
+		return "", err
+	}
+	return formatTaskDue(parsed, hasTime), nil
+}

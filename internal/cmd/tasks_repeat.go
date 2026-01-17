@@ -103,5 +103,5 @@ func formatTaskDue(t time.Time, hasTime bool) string {
 	if hasTime {
 		return t.Format(time.RFC3339)
 	}
-	return t.Format("2006-01-02")
+	return t.UTC().Format(time.RFC3339)
 }
