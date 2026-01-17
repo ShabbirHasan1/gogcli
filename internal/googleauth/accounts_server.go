@@ -74,6 +74,26 @@ func shouldEnsureKeychainAccess() (bool, error) {
 	return backendInfo.Value != "file", nil
 }
 
+func manageServices(services []Service) []Service {
+	if len(services) == 0 {
+		services = UserServices()
+	}
+
+	filtered := make([]Service, 0, len(services))
+	for _, svc := range services {
+		if svc == ServiceKeep {
+			continue
+		}
+		filtered = append(filtered, svc)
+	}
+
+	if len(filtered) == 0 {
+		return UserServices()
+	}
+
+	return filtered
+}
+
 // StartManageServer starts the accounts management server and opens browser
 func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 	if opts.Timeout <= 0 {
@@ -220,10 +240,7 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 	}
 	ms.oauthState = state
 
-	services := ms.opts.Services
-	if len(services) == 0 {
-		services = AllServices()
-	}
+	services := manageServices(ms.opts.Services)
 
 	scopes, err := ScopesForManage(services)
 	if err != nil {
@@ -267,8 +284,8 @@ func (ms *ManageServer) handleAuthUpgrade(w http.ResponseWriter, r *http.Request
 	}
 	ms.oauthState = state
 
-	// Always use all services for upgrade
-	services := AllServices()
+	// Use requested manage services (exclude Keep)
+	services := manageServices(ms.opts.Services)
 
 	scopes, err := ScopesForManage(services)
 	if err != nil {
@@ -331,10 +348,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	services := ms.opts.Services
-	if len(services) == 0 {
-		services = AllServices()
-	}
+	services := manageServices(ms.opts.Services)
 
 	scopes, err := ScopesForManage(services)
 	if err != nil {
@@ -618,9 +632,11 @@ func renderSuccessPageWithDetails(w http.ResponseWriter, email string, services 
 		return
 	}
 
-	// Get all available services for showing connected vs missing
-	allServices := make([]string, 0, len(serviceOrder))
-	for _, svc := range serviceOrder {
+	// Show available user services for connected vs missing
+	userServices := UserServices()
+	allServices := make([]string, 0, len(userServices))
+
+	for _, svc := range userServices {
 		allServices = append(allServices, string(svc))
 	}
 

@@ -428,12 +428,10 @@ func TestManageServer_HandleAuthStart(t *testing.T) {
 		t.Fatalf("status: %d", rr.Code)
 	}
 	loc := rr.Header().Get("Location")
-	var parsed *url.URL
 
-	if p, err := url.Parse(loc); err != nil {
-		t.Fatalf("parse location: %v", err)
-	} else {
-		parsed = p
+	parsed, parseErr := url.Parse(loc)
+	if parseErr != nil {
+		t.Fatalf("parse location: %v", parseErr)
 	}
 
 	if parsed.Host != "example.com" {
@@ -884,7 +882,10 @@ func TestManageServer_HandleAuthUpgrade(t *testing.T) {
 
 	t.Cleanup(func() { _ = ln.Close() })
 
-	ms := &ManageServer{listener: ln}
+	ms := &ManageServer{
+		listener: ln,
+		opts:     ManageServerOptions{Services: []Service{ServiceGmail}},
+	}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/auth/upgrade?email=test@example.com", nil)
 	ms.handleAuthUpgrade(rr, req)
@@ -894,12 +895,10 @@ func TestManageServer_HandleAuthUpgrade(t *testing.T) {
 	}
 
 	loc := rr.Header().Get("Location")
-	var parsed *url.URL
 
-	if p, err := url.Parse(loc); err != nil {
-		t.Fatalf("parse location: %v", err)
-	} else {
-		parsed = p
+	parsed, parseErr := url.Parse(loc)
+	if parseErr != nil {
+		t.Fatalf("parse location: %v", parseErr)
 	}
 
 	if parsed.Host != "example.com" {
@@ -912,6 +911,28 @@ func TestManageServer_HandleAuthUpgrade(t *testing.T) {
 
 	if ms.oauthState != "state456" {
 		t.Fatalf("expected oauthState set")
+	}
+
+	scope := parsed.Query().Get("scope")
+
+	expectedScopes, err := ScopesForManage([]Service{ServiceGmail})
+	if err != nil {
+		t.Fatalf("ScopesForManage: %v", err)
+	}
+
+	scopeSet := make(map[string]bool, len(expectedScopes))
+	for _, s := range strings.Fields(scope) {
+		scopeSet[s] = true
+	}
+
+	for _, s := range expectedScopes {
+		if !scopeSet[s] {
+			t.Fatalf("expected scope %q in %q", s, scope)
+		}
+	}
+
+	if scopeSet["https://www.googleapis.com/auth/keep.readonly"] {
+		t.Fatalf("unexpected keep scope in %q", scope)
 	}
 
 	// Check for login_hint (pre-selects the email)

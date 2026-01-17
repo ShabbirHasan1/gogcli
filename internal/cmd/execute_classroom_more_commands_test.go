@@ -123,8 +123,8 @@ func TestExecute_ClassroomMoreCommands_JSON(t *testing.T) {
 				writeJSON(map[string]any{"ok": true})
 				return
 			case strings.Contains(path, "/studentSubmissions/") && r.Method == http.MethodPatch:
-				if got := r.URL.Query().Get("updateMask"); got != "draft_grade,assigned_grade" {
-					t.Fatalf("expected updateMask draft_grade,assigned_grade, got %q", got)
+				if got := r.URL.Query().Get("updateMask"); got != "draftGrade,assignedGrade" {
+					t.Fatalf("expected updateMask draftGrade,assignedGrade, got %q", got)
 				}
 				writeJSON(map[string]any{"id": "s1", "draftGrade": 5, "assignedGrade": 10})
 				return
