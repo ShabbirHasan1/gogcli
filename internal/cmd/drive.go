@@ -51,11 +51,10 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
-
 	formatAuto             = "auto"
-	driveShareToAnyone = "anyone"
-	driveShareToUser   = "user"
-	driveShareToDomain = "domain"
+	driveShareToAnyone     = "anyone"
+	driveShareToUser       = "user"
+	driveShareToDomain     = "domain"
 
 	drivePermRoleReader = "reader"
 	drivePermRoleWriter = "writer"
@@ -109,7 +108,6 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	call := svc.Files.List().
 		// Include files from shared drives, not just personal "My Drive"
-	call := svc.Files.List().
 		Q(q).
 		PageSize(c.Max).
 		PageToken(c.Page).
@@ -1246,7 +1244,6 @@ func driveExportMimeType(googleMimeType string) string {
 
 func driveExportMimeTypeForFormat(googleMimeType string, format string) (string, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
-	if format == "" {
 	if format == "" || format == formatAuto {
 		return driveExportMimeType(googleMimeType), nil
 	}
