@@ -597,17 +597,11 @@ func (c *DriveDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"trashed": trashed,
-			"deleted": deleted,
-			"id":      fileID,
-		})
-	}
-	u.Out().Printf("trashed\t%t", trashed)
-	u.Out().Printf("deleted\t%t", deleted)
-	u.Out().Printf("id\t%s", fileID)
-	return nil
+	return writeResult(ctx, u,
+		kv("trashed", trashed),
+		kv("deleted", deleted),
+		kv("id", fileID),
+	)
 }
 
 type DriveMoveCmd struct {
@@ -865,18 +859,11 @@ func (c *DriveUnshareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"removed":      true,
-			"fileId":       fileID,
-			"permissionId": permissionID,
-		})
-	}
-
-	u.Out().Printf("removed\ttrue")
-	u.Out().Printf("file_id\t%s", fileID)
-	u.Out().Printf("permission_id\t%s", permissionID)
-	return nil
+	return writeResult(ctx, u,
+		kv("removed", true),
+		kv("fileId", fileID),
+		kv("permissionId", permissionID),
+	)
 }
 
 type DrivePermissionsCmd struct {
