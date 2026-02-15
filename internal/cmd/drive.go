@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"google.golang.org/api/drive/v3"
@@ -20,6 +21,16 @@ import (
 )
 
 var newDriveService = googleapi.NewDrive
+
+var (
+	driveSearchFieldComparisonPattern = regexp.MustCompile(`(?i)\b(?:mimeType|name|fullText|trashed|starred|modifiedTime|createdTime|viewedByMeTime|visibility)\b\s*(?:!=|<=|>=|=|<|>)`)
+	driveSearchContainsPattern        = regexp.MustCompile(`(?i)\b(?:name|fullText)\b\s+contains\s+'`)
+	driveSearchMembershipPattern      = regexp.MustCompile(`(?i)'[^']+'\s+in\s+(?:parents|owners|writers|readers)`)
+	driveSearchHasPattern             = regexp.MustCompile(`(?i)\b(?:properties|appProperties)\b\s+has\s+\{`)
+	// Only treat as "already constrained" when the query contains a real trashed predicate,
+	// not just the word inside a quoted literal (e.g. "name contains 'trashed'").
+	driveTrashedPredicatePattern = regexp.MustCompile(`(?i)\btrashed\b\s*(?:=|!=)\s*(?:true|false)\b`)
+)
 
 const (
 	driveMimeGoogleDoc     = "application/vnd.google-apps.document"
@@ -984,15 +995,38 @@ func buildDriveListQuery(folderID string, userQuery string) string {
 	} else {
 		q = parent
 	}
-	if !strings.Contains(q, "trashed") {
+	if !hasDriveTrashedPredicate(q) {
 		q += " and trashed = false"
 	}
 	return q
 }
 
 func buildDriveSearchQuery(text string) string {
-	q := fmt.Sprintf("fullText contains '%s'", escapeDriveQueryString(text))
-	return q + " and trashed = false"
+	q := strings.TrimSpace(text)
+	if q == "" {
+		return "trashed = false"
+	}
+	if !looksLikeDriveFilterQuery(q) {
+		return fmt.Sprintf("fullText contains '%s' and trashed = false", escapeDriveQueryString(q))
+	}
+	if !hasDriveTrashedPredicate(q) {
+		q += " and trashed = false"
+	}
+	return q
+}
+
+func looksLikeDriveFilterQuery(q string) bool {
+	if strings.EqualFold(q, "sharedWithMe") {
+		return true
+	}
+	return driveSearchFieldComparisonPattern.MatchString(q) ||
+		driveSearchContainsPattern.MatchString(q) ||
+		driveSearchMembershipPattern.MatchString(q) ||
+		driveSearchHasPattern.MatchString(q)
+}
+
+func hasDriveTrashedPredicate(q string) bool {
+	return driveTrashedPredicatePattern.MatchString(q)
 }
 
 func escapeDriveQueryString(s string) string {

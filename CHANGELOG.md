@@ -14,6 +14,7 @@
 ### Fixed
 - Auth: manual OAuth flow uses an ephemeral loopback redirect port (avoids unsafe/privileged ports in browsers). (#172) — thanks @spookyuser.
 - Gmail: when `gmail attachment --out` points to a directory (or ends with a trailing slash), combine with `--name` and avoid false cache hits on directories. (#248) — thanks @zerone0x.
+- Drive/Gmail: pass through Drive API filter queries in `drive search`; RFC 2047-encode non-ASCII display names in mail headers (`From`/`To`/`Cc`/`Bcc`/`Reply-To`). (#260) — thanks @salmonumbrella.
 - Calendar: fall back to fixed-offset timezones (`Etc/GMT±N`) for recurring events when given RFC3339 offset datetimes; harden Gmail attachment output paths and cache validation; honor proxy defaults for Google API transports. (#228) — thanks @salmonumbrella.
 - Calendar: allow opting into attendee notifications for updates and cancellations via `calendar update|delete --send-updates all|externalOnly|none`. (#163) — thanks @tonimelisma.
 - Gmail: include primary display name in `gmail send` From header when using service account impersonation (domain-wide delegation). (#184) — thanks @salmonumbrella.
