@@ -2,6 +2,9 @@
 
 ## 0.12.0 - Unreleased
 
+### Added
+- Sheets: add `sheets insert` to insert rows/columns into a sheet. (#203) — thanks @andybergon.
+
 ### Fixed
 - Calendar: respond patches only attendees to avoid custom reminders validation errors. (#265) — thanks @sebasrodriguez.
 - Secrets: respect empty `GOG_KEYRING_PASSWORD` (treat set-to-empty as intentional; avoids headless prompts). (#269) — thanks @zerone0x.
