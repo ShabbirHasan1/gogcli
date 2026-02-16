@@ -48,9 +48,9 @@ func (c *GmailHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return nil, "", err
 		}
 		historyID = formatHistoryID(resp.HistoryId)
-		return collectHistoryMessageIDs(resp), resp.NextPageToken, nil
+		historyIDs := collectHistoryMessageIDs(resp)
+		return historyIDs.FetchIDs, resp.NextPageToken, nil
 	}
-
 	var ids []string
 	nextPageToken := ""
 	if c.All {
