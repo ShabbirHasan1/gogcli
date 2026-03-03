@@ -295,6 +295,11 @@ func boolString(v bool) string {
 	}
 	return boolFalse
 }
+
+func newParser(description string) (*kong.Kong, *CLI, error) {
+	envMode := outfmt.FromEnv()
+	vars := kong.Vars{
+		"auth_services":    googleauth.UserServiceCSV(),
 		"color":            envOr("GOG_COLOR", "auto"),
 		"calendar_weekday": envOr("GOG_CALENDAR_WEEKDAY", "false"),
 		"client":           envOr("GOG_CLIENT", ""),

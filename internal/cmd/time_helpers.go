@@ -120,39 +120,46 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 	case flags.Days > 0:
 		from = startOfDay(now)
 		to = endOfDay(now.AddDate(0, 0, flags.Days-1))
-		default:
-			// Parse --from and --to, or use defaults
-			if flags.From != "" {
-				from, err = parseTimeExpr(flags.From, now, loc)
-				if err != nil {
-					return nil, fmt.Errorf("invalid --from: %w", err)
-				}
-			} else {
-				from = now.Add(defaults.FromOffset)
-			}
-
-	switch {
-	case flags.To != "":
-		toIsDayExpr := isDayExpr(flags.To, now, loc)
-		to, err = parseTimeExpr(flags.To, now, loc)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --to: %w", err)
-		}
-		if toIsDayExpr {
-			to = endOfDay(to)
-		}
-	case flags.From != "" && defaults.ToFromOffset != 0:
-		to = from.Add(defaults.ToFromOffset)
 	default:
-		to = now.Add(defaults.ToOffset)
+		// Parse --from and --to, or use defaults
+		if flags.From != "" {
+			from, err = parseTimeExpr(flags.From, now, loc)
+			if err != nil {
+				return nil, fmt.Errorf("invalid --from: %w", err)
+			}
+		} else {
+			from = now.Add(defaults.FromOffset)
+		}
+
+		switch {
+		case flags.To != "":
+			to, err = parseTimeExprEndOfDay(flags.To, now, loc)
+			if err != nil {
+				return nil, fmt.Errorf("invalid --to: %w", err)
+			}
+		case flags.From != "" && defaults.ToFromOffset != 0:
+			to = from.Add(defaults.ToFromOffset)
+		default:
+			to = now.Add(defaults.ToOffset)
+		}
 	}
-}
 
 	return &TimeRange{
 		From:     from,
 		To:       to,
 		Location: loc,
 	}, nil
+}
+
+func parseTimeExprEndOfDay(expr string, now time.Time, loc *time.Location) (time.Time, error) {
+	t, err := parseTimeExpr(expr, now, loc)
+	if err != nil {
+		return t, err
+	}
+	if isDayExpr(expr, now, loc) {
+		return endOfDay(t), nil
+	}
+	return t, nil
 }
 
 func isDayExpr(expr string, now time.Time, loc *time.Location) bool {
@@ -175,6 +182,7 @@ func isDayExpr(expr string, now time.Time, loc *time.Location) bool {
 	}
 	return false
 }
+
 // parseTimeExpr parses a time expression which can be:
 // - RFC3339: 2026-01-05T14:00:00-08:00
 // - ISO 8601 with numeric timezone: 2026-01-05T14:00:00-0800 (no colon)

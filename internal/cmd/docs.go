@@ -371,7 +371,7 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		if resp.WriteControl != nil {
 			payload["writeControl"] = resp.WriteControl
 		}
-		return outfmt.WriteJSON(os.Stdout, payload)
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
 	u.Out().Printf("id\t%s", resp.DocumentId)
@@ -470,7 +470,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		if resp.WriteControl != nil {
 			payload["writeControl"] = resp.WriteControl
 		}
-		return outfmt.WriteJSON(os.Stdout, payload)
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
 	u.Out().Printf("id\t%s", resp.DocumentId)
@@ -1248,6 +1248,7 @@ func docsAppendIndex(endIndex int64) int64 {
 	}
 	return 1
 }
+
 func isDocsNotFound(err error) bool {
 	var apiErr *gapi.Error
 	if !errors.As(err, &apiErr) {
