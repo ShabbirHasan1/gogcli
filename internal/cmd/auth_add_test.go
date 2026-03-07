@@ -626,14 +626,16 @@ func TestAuthAddCmd_RemoteStep1_PrintsAuthURL(t *testing.T) {
 		return nil
 	}
 
+	var stderr string
 	out := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
+		stderr = captureStderr(t, func() {
 			if err := Execute([]string{
 				"auth",
 				"add",
 				"user@example.com",
 				"--services",
 				"gmail",
+				"--readonly",
 				"--remote",
 				"--step",
 				"1",
@@ -651,6 +653,9 @@ func TestAuthAddCmd_RemoteStep1_PrintsAuthURL(t *testing.T) {
 	}
 	if !strings.Contains(out, "state_reused\ttrue") {
 		t.Fatalf("expected state_reused output, got: %q", out)
+	}
+	if !strings.Contains(stderr, "Run again with the same root flags and --remote --step 2 --auth-url <redirect-url> --services gmail --readonly") {
+		t.Fatalf("expected step 2 guidance to preserve replay flags, got: %q", stderr)
 	}
 }
 

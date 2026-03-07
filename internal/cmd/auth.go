@@ -488,6 +488,30 @@ type AuthAddCmd struct {
 	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
 }
 
+func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd) string {
+	parts := []string{"--remote", "--step", "2", "--auth-url", "<redirect-url>"}
+	if len(services) > 0 {
+		serialized := make([]string, 0, len(services))
+		for _, service := range services {
+			serialized = append(serialized, string(service))
+		}
+		parts = append(parts, "--services", strings.Join(serialized, ","))
+	}
+	if c.Readonly {
+		parts = append(parts, "--readonly")
+	}
+	if driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope)); driveScope != "" && driveScope != "full" {
+		parts = append(parts, "--drive-scope", driveScope)
+	}
+	if gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope)); gmailScope != "" && gmailScope != "full" {
+		parts = append(parts, "--gmail-scope", gmailScope)
+	}
+	if c.ForceConsent {
+		parts = append(parts, "--force-consent")
+	}
+	return strings.Join(parts, " ")
+}
+
 func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
@@ -570,7 +594,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			u.Out().Printf("auth_url\t%s", result.URL)
 			u.Out().Printf("state_reused\t%t", result.StateReused)
-			u.Err().Println("Run again with --remote --step 2 --auth-url <redirect-url>")
+			u.Err().Printf("Run again with the same root flags and %s\n", formatRemoteStep2Instruction(services, c))
 			return nil
 		case 2:
 			if authCode != "" {
