@@ -34,10 +34,6 @@ type DocsCommentsListCmd struct {
 
 func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	docID := normalizeGoogleID(strings.TrimSpace(c.DocID))
 	if docID == "" {
 		return usage("empty docId")
@@ -46,7 +42,7 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("max must be > 0")
 	}
 
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -187,10 +183,6 @@ type DocsCommentsGetCmd struct {
 
 func (c *DocsCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	docID := normalizeGoogleID(strings.TrimSpace(c.DocID))
 	commentID := strings.TrimSpace(c.CommentID)
 	if docID == "" {
@@ -200,7 +192,7 @@ func (c *DocsCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty commentId")
 	}
 
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -278,12 +270,7 @@ func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -344,12 +331,7 @@ func (c *DocsCommentsReplyCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -398,12 +380,7 @@ func (c *DocsCommentsResolveCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -459,12 +436,7 @@ func (c *DocsCommentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 		return confirmErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}

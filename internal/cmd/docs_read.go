@@ -26,17 +26,12 @@ type DocsCatCmd struct {
 }
 
 func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -161,17 +156,12 @@ type DocsListTabsCmd struct {
 
 func (c *DocsListTabsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -212,17 +202,12 @@ type DocsStructureCmd struct {
 
 func (c *DocsStructureCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}

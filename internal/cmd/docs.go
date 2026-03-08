@@ -58,17 +58,12 @@ type DocsInfoCmd struct {
 
 func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -124,17 +119,12 @@ type DocsCreateCmd struct {
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	title := strings.TrimSpace(c.Title)
 	if title == "" {
 		return usage("empty title")
 	}
 
-	driveSvc, err := newDriveService(ctx, account)
+	account, driveSvc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}

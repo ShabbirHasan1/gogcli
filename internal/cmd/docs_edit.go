@@ -24,11 +24,6 @@ type DocsWriteCmd struct {
 
 func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
@@ -45,7 +40,7 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		return usage("empty text")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -130,11 +125,6 @@ type DocsUpdateCmd struct {
 
 func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
@@ -154,7 +144,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return usage("invalid --index (must be >= 1)")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -225,11 +215,6 @@ type DocsInsertCmd struct {
 
 func (c *DocsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
 		return usage("empty docId")
@@ -245,7 +230,7 @@ func (c *DocsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--index must be >= 1 (index 0 is reserved)")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -291,11 +276,6 @@ type DocsDeleteCmd struct {
 
 func (c *DocsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
 		return usage("empty docId")
@@ -307,7 +287,7 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--end must be greater than --start")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -383,11 +363,6 @@ func (c *DocsEditCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
 		return usage("empty docId")
@@ -396,7 +371,7 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("find text cannot be empty")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
