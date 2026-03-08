@@ -115,6 +115,7 @@ func UpdateConfig(update func(*File) error) error {
 	if err := update(&cfg); err != nil {
 		return err
 	}
+
 	return WriteConfig(cfg)
 }
 
