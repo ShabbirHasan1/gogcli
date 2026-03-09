@@ -35,12 +35,7 @@ type CalendarConflictsCmd struct {
 
 func (c *CalendarConflictsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
+	_, svc, err := requireCalendarService(ctx, flags)
 	if err != nil {
 		return err
 	}

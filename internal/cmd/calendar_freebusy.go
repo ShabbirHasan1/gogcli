@@ -22,16 +22,11 @@ type CalendarFreeBusyCmd struct {
 
 func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	if strings.TrimSpace(c.From) == "" || strings.TrimSpace(c.To) == "" {
 		return usage("required: --from and --to")
 	}
 
-	svc, err := newCalendarService(ctx, account)
+	_, svc, err := requireCalendarService(ctx, flags)
 	if err != nil {
 		return err
 	}

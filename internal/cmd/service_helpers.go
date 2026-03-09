@@ -8,6 +8,7 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/gmail/v1"
+	"google.golang.org/api/sheets/v4"
 )
 
 func requireDocsService(ctx context.Context, flags *RootFlags) (*docs.Service, error) {
@@ -32,6 +33,10 @@ func requireGmailService(ctx context.Context, flags *RootFlags) (string, *gmail.
 
 func requireClassroomService(ctx context.Context, flags *RootFlags) (string, *classroom.Service, error) {
 	return requireGoogleService(ctx, flags, newClassroomService)
+}
+
+func requireSheetsService(ctx context.Context, flags *RootFlags) (string, *sheets.Service, error) {
+	return requireGoogleService(ctx, flags, newSheetsService)
 }
 
 func requireGoogleService[T any](ctx context.Context, flags *RootFlags, newService func(context.Context, string) (*T, error)) (string, *T, error) {

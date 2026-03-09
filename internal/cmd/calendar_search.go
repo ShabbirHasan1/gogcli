@@ -21,16 +21,12 @@ type CalendarSearchCmd struct {
 
 func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	query := strings.TrimSpace(c.Query)
 	if query == "" {
 		return fmt.Errorf("search query cannot be empty")
 	}
 
-	svc, err := newCalendarService(ctx, account)
+	_, svc, err := requireCalendarService(ctx, flags)
 	if err != nil {
 		return err
 	}

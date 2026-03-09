@@ -26,17 +26,12 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--all cannot be combined with --parent")
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	folderID := strings.TrimSpace(c.Parent)
 	if folderID == "" {
 		folderID = "root"
 	}
 
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -60,17 +55,12 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	query := strings.TrimSpace(strings.Join(c.Query, " "))
 	if query == "" {
 		return usage("missing query")
 	}
 
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}

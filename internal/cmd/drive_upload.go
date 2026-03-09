@@ -29,11 +29,6 @@ type driveUploadOptions struct {
 }
 
 func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	opts, err := prepareDriveUpload(c)
 	if err != nil {
 		return err
@@ -45,7 +40,7 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	defer file.Close()
 
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
