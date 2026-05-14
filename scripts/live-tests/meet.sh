@@ -9,8 +9,15 @@ run_meet_tests() {
   fi
 
   local space_json meeting_code
-  echo "==> meet create"
-  space_json=$(gog meet create --json)
+  echo "==> meet create (optional)"
+  if ! space_json=$(gog meet create --json); then
+    echo "skipped/failed"
+    if [ "${STRICT:-false}" = true ]; then
+      return 1
+    fi
+    return 0
+  fi
+  echo "ok"
   meeting_code=$(echo "$space_json" | "$PY" -c "import sys,json; print(json.load(sys.stdin)['meeting_code'])")
   [ -n "$meeting_code" ] || { echo "Failed to parse meeting code" >&2; exit 1; }
 

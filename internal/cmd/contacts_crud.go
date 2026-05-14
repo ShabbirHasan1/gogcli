@@ -353,19 +353,36 @@ func anyFlagProvided(kctx *kong.Context, names ...string) bool {
 	return false
 }
 
+func flagValue[T any](set bool, value T) any {
+	if !set {
+		return nil
+	}
+	return value
+}
+
+func (c *ContactsUpdateCmd) validateFlagUpdateInputs(wantBirthday, wantCustom, wantRelation bool) error {
+	if wantCustom {
+		if _, _, err := parseCustomUserDefined(c.Custom, true); err != nil {
+			return usage(err.Error())
+		}
+	}
+	if wantRelation {
+		if _, _, err := parseRelations(c.Relation, true); err != nil {
+			return usage(err.Error())
+		}
+	}
+	if wantBirthday && strings.TrimSpace(c.Birthday) != "" {
+		if _, err := parseYYYYMMDD(strings.TrimSpace(c.Birthday)); err != nil {
+			return usage("invalid --birthday (expected YYYY-MM-DD)")
+		}
+	}
+	return nil
+}
+
 func (c *ContactsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	if strings.TrimSpace(c.Given) == "" {
 		return usage("required: --given")
-	}
-
-	svc, err := newPeopleContactsService(ctx, account)
-	if err != nil {
-		return err
 	}
 
 	p := &people.Person{
@@ -421,6 +438,19 @@ func (c *ContactsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
+	if err := dryRunExit(ctx, flags, "contacts.create", map[string]any{"contact": p}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := newPeopleContactsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
 	created, err := svc.People.CreateContact(p).Do()
 	if err != nil {
 		return err
@@ -454,20 +484,53 @@ type ContactsUpdateCmd struct {
 	Notes    string `name:"notes" help:"Notes (stored as People API biography; empty clears)"`
 }
 
+type contactsUpdateFieldFlags struct {
+	given    bool
+	family   bool
+	email    bool
+	phone    bool
+	org      bool
+	title    bool
+	url      bool
+	note     bool
+	address  bool
+	gender   bool
+	birthday bool
+	notes    bool
+	custom   bool
+	relation bool
+}
+
+func contactsUpdateFieldFlagsFromKong(kctx *kong.Context) contactsUpdateFieldFlags {
+	return contactsUpdateFieldFlags{
+		given:    flagProvided(kctx, "given"),
+		family:   flagProvided(kctx, "family"),
+		email:    flagProvided(kctx, "email"),
+		phone:    flagProvided(kctx, "phone"),
+		org:      flagProvided(kctx, "org"),
+		title:    flagProvided(kctx, "title"),
+		url:      flagProvided(kctx, "url"),
+		note:     flagProvided(kctx, "note"),
+		address:  flagProvided(kctx, "address"),
+		gender:   flagProvided(kctx, "gender"),
+		birthday: flagProvided(kctx, "birthday"),
+		notes:    flagProvided(kctx, "notes"),
+		custom:   flagProvided(kctx, "custom"),
+		relation: flagProvided(kctx, "relation"),
+	}
+}
+
+func (w contactsUpdateFieldFlags) any() bool {
+	return w.given || w.family || w.email || w.phone || w.org || w.title ||
+		w.url || w.note || w.address || w.gender || w.birthday || w.notes ||
+		w.custom || w.relation
+}
+
 func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	resourceName := strings.TrimSpace(c.ResourceName)
 	if !strings.HasPrefix(resourceName, "people/") {
 		return usage("resourceName must start with people/")
-	}
-
-	svc, err := newPeopleContactsService(ctx, account)
-	if err != nil {
-		return err
 	}
 
 	if strings.TrimSpace(c.FromFile) != "" {
@@ -479,9 +542,69 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		) {
 			return usage("can't combine --from-file with other update flags")
 		}
+		if flags != nil && flags.DryRun {
+			inputPerson, updateFields, err := c.readUpdateJSONInput(resourceName)
+			if err != nil {
+				return err
+			}
+			if err := dryRunExit(ctx, flags, "contacts.update", map[string]any{
+				"resourceName": resourceName,
+				"from_file":    strings.TrimSpace(c.FromFile),
+				"updateFields": updateFields,
+				"contact":      inputPerson,
+			}); err != nil {
+				return err
+			}
+		}
+		account, err := requireAccount(flags)
+		if err != nil {
+			return err
+		}
+		svc, err := newPeopleContactsService(ctx, account)
+		if err != nil {
+			return err
+		}
 		return c.updateFromJSON(ctx, svc, resourceName, u)
 	}
 
+	want := contactsUpdateFieldFlagsFromKong(kctx)
+	if !want.any() {
+		return usage("no updates provided")
+	}
+	if err := c.validateFlagUpdateInputs(want.birthday, want.custom, want.relation); err != nil {
+		return err
+	}
+
+	if err := dryRunExit(ctx, flags, "contacts.update", map[string]any{
+		"resourceName": resourceName,
+		"fields": map[string]any{
+			"given":        flagValue(want.given, c.Given),
+			"family":       flagValue(want.family, c.Family),
+			"email":        flagValue(want.email, c.Email),
+			"phone":        flagValue(want.phone, c.Phone),
+			"organization": flagValue(want.org, c.Organization),
+			"title":        flagValue(want.title, c.Title),
+			"url":          flagValue(want.url, c.URL),
+			"note":         flagValue(want.note, c.Note),
+			"address":      flagValue(want.address, c.Address),
+			"gender":       flagValue(want.gender, c.Gender),
+			"birthday":     flagValue(want.birthday, c.Birthday),
+			"notes":        flagValue(want.notes, c.Notes),
+			"custom":       flagValue(want.custom, c.Custom),
+			"relation":     flagValue(want.relation, c.Relation),
+		},
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := newPeopleContactsService(ctx, account)
+	if err != nil {
+		return err
+	}
 	existing, err := svc.People.Get(resourceName).PersonFields(contactsUpdateReadMask).Do()
 	if err != nil {
 		return err
@@ -489,26 +612,11 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 	updateFields := make([]string, 0, 8)
 
-	wantGiven := flagProvided(kctx, "given")
-	wantFamily := flagProvided(kctx, "family")
-	wantEmail := flagProvided(kctx, "email")
-	wantPhone := flagProvided(kctx, "phone")
-	wantOrg := flagProvided(kctx, "org")
-	wantTitle := flagProvided(kctx, "title")
-	wantURL := flagProvided(kctx, "url")
-	wantNote := flagProvided(kctx, "note")
-	wantAddress := flagProvided(kctx, "address")
-	wantGender := flagProvided(kctx, "gender")
-	wantBirthday := flagProvided(kctx, "birthday")
-	wantNotes := flagProvided(kctx, "notes")
-	wantCustom := flagProvided(kctx, "custom")
-	wantRelation := flagProvided(kctx, "relation")
-
-	if wantGiven || wantFamily {
-		contactsApplyPersonName(existing, wantGiven, c.Given, wantFamily, c.Family)
+	if want.given || want.family {
+		contactsApplyPersonName(existing, want.given, c.Given, want.family, c.Family)
 		updateFields = append(updateFields, "names")
 	}
-	if wantEmail {
+	if want.email {
 		if strings.TrimSpace(c.Email) == "" {
 			existing.EmailAddresses = nil // will be forced to [] for patch
 		} else {
@@ -516,7 +624,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 		updateFields = append(updateFields, "emailAddresses")
 	}
-	if wantPhone {
+	if want.phone {
 		if strings.TrimSpace(c.Phone) == "" {
 			existing.PhoneNumbers = nil // will be forced to [] for patch
 		} else {
@@ -524,11 +632,11 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 		updateFields = append(updateFields, "phoneNumbers")
 	}
-	if wantOrg || wantTitle {
-		contactsApplyPersonOrganization(existing, wantOrg, c.Organization, wantTitle, c.Title)
+	if want.org || want.title {
+		contactsApplyPersonOrganization(existing, want.org, c.Organization, want.title, c.Title)
 		updateFields = append(updateFields, "organizations")
 	}
-	if wantURL {
+	if want.url {
 		urls := contactsURLs(c.URL)
 		if len(urls) == 0 {
 			existing.Urls = nil
@@ -537,7 +645,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 		updateFields = append(updateFields, "urls")
 	}
-	if wantNote {
+	if want.note {
 		if strings.TrimSpace(c.Note) == "" {
 			existing.Biographies = nil
 		} else {
@@ -545,7 +653,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 		updateFields = append(updateFields, "biographies")
 	}
-	if wantAddress {
+	if want.address {
 		addrs := contactsAddresses(c.Address)
 		if len(addrs) == 0 {
 			existing.Addresses = nil // will be forced to [] for patch
@@ -554,7 +662,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 		updateFields = append(updateFields, "addresses")
 	}
-	if wantGender {
+	if want.gender {
 		genders := contactsGenders(c.Gender)
 		if len(genders) == 0 {
 			existing.Genders = nil // will be forced to [] for patch
@@ -563,7 +671,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 		updateFields = append(updateFields, "genders")
 	}
-	if wantCustom {
+	if want.custom {
 		userDefined, clearAll, parseErr := parseCustomUserDefined(c.Custom, true)
 		if parseErr != nil {
 			return usage(parseErr.Error())
@@ -575,7 +683,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 		updateFields = append(updateFields, "userDefined")
 	}
-	if wantRelation {
+	if want.relation {
 		relations, clearAll, parseErr := parseRelations(c.Relation, true)
 		if parseErr != nil {
 			return usage(parseErr.Error())
@@ -588,7 +696,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		updateFields = append(updateFields, "relations")
 	}
 
-	if wantBirthday {
+	if want.birthday {
 		if strings.TrimSpace(c.Birthday) == "" {
 			existing.Birthdays = nil // will be forced to [] for patch
 		} else {
@@ -604,7 +712,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		updateFields = append(updateFields, "birthdays")
 	}
 
-	if wantNotes {
+	if want.notes {
 		if strings.TrimSpace(c.Notes) == "" {
 			existing.Biographies = nil // will be forced to [] for patch
 		} else {

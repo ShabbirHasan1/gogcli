@@ -102,7 +102,7 @@ run_gmail_tests() {
 
   if [ -n "${GOG_LIVE_GMAIL_FILTERS:-}" ]; then
     local filter_json filter_id
-    filter_json=$(gog gmail filters create --from "gogcli-smoke-$TS@example.com" --add-label INBOX --json)
+    filter_json=$(gog gmail filters create --from "gogcli-smoke-$TS@example.com" --star --json)
     filter_id=$(extract_id "$filter_json")
     if [ -n "$filter_id" ]; then
       run_required "gmail" "gmail filters get" gog gmail filters get "$filter_id" --json >/dev/null
@@ -241,7 +241,7 @@ PY
     echo "==> gmail batch delete (skipped)"
   else
     echo "==> gmail batch delete"
-    if gog gmail batch delete "$send_msg_id" "$sent_draft_msg_id" --json >/dev/null; then
+    if gog --force gmail batch delete "$send_msg_id" "$sent_draft_msg_id" --json >/dev/null; then
       :
     else
       echo "gmail batch delete failed; falling back to trash" >&2

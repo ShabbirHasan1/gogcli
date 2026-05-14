@@ -112,16 +112,24 @@ type SlidesCreateCmd struct {
 
 func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	title := strings.TrimSpace(c.Title)
 	if title == "" {
 		return usage("empty title")
 	}
+	parent := strings.TrimSpace(c.Parent)
+	template := strings.TrimSpace(c.Template)
+	if err := dryRunExit(ctx, flags, "slides.create", map[string]any{
+		"title":    title,
+		"parent":   parent,
+		"template": template,
+	}); err != nil {
+		return err
+	}
 
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
@@ -134,12 +142,11 @@ func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		f := &drive.File{
 			Name: title,
 		}
-		parent := strings.TrimSpace(c.Parent)
 		if parent != "" {
 			f.Parents = []string{parent}
 		}
 
-		created, err = svc.Files.Copy(c.Template, f).
+		created, err = svc.Files.Copy(template, f).
 			SupportsAllDrives(true).
 			Fields("id, name, mimeType, webViewLink").
 			Context(ctx).
@@ -153,7 +160,6 @@ func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Name:     title,
 			MimeType: "application/vnd.google-apps.presentation",
 		}
-		parent := strings.TrimSpace(c.Parent)
 		if parent != "" {
 			f.Parents = []string{parent}
 		}

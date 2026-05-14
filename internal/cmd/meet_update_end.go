@@ -51,6 +51,14 @@ func (c *MeetUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("at least one of --access or --entry-point is required")
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "meet.spaces.patch", map[string]any{
+		"meeting_code": c.MeetingCode,
+		"update_mask":  strings.Join(updateMask, ","),
+		"config":       patch.Config,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	_, svc, err := requireMeetService(ctx, flags)
 	if err != nil {
 		return wrapMeetError(err)
@@ -59,14 +67,6 @@ func (c *MeetUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	space, err := resolveMeetSpace(ctx, svc, c.MeetingCode)
 	if err != nil {
 		return wrapMeetError(err)
-	}
-
-	if dryRunErr := dryRunExit(ctx, flags, "meet.spaces.patch", map[string]any{
-		"meeting_code": c.MeetingCode,
-		"update_mask":  strings.Join(updateMask, ","),
-		"config":       patch.Config,
-	}); dryRunErr != nil {
-		return dryRunErr
 	}
 
 	updated, err := svc.Spaces.Patch(space.Name, patch).
@@ -103,6 +103,12 @@ func (c *MeetEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty meeting code")
 	}
 
+	if dryRunErr := dryRunAndConfirmDestructive(ctx, flags, "meet.spaces.end_active_conference", map[string]any{
+		"meeting_code": c.MeetingCode,
+	}, "end active conference in "+c.MeetingCode); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	_, svc, err := requireMeetService(ctx, flags)
 	if err != nil {
 		return wrapMeetError(err)
@@ -111,10 +117,6 @@ func (c *MeetEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	space, err := resolveMeetSpace(ctx, svc, c.MeetingCode)
 	if err != nil {
 		return wrapMeetError(err)
-	}
-
-	if confirmErr := confirmDestructive(ctx, flags, "end active conference in "+c.MeetingCode); confirmErr != nil {
-		return confirmErr
 	}
 
 	req := &meet.EndActiveConferenceRequest{}

@@ -40,14 +40,18 @@ run_drive_tests() {
   run_required "drive" "drive permissions" gog drive permissions "$file_id" --json >/dev/null
 
   local share_json perm_id perms_json
-  share_json=$(gog drive share "$file_id" --email "$EMAIL_TEST" --role reader --notify --json)
-  perms_json=$(gog drive permissions "$file_id" --json --max 50)
-  perm_id=$(extract_permission_id "$perms_json" "$EMAIL_TEST")
-  if [ -z "$perm_id" ]; then
-    perm_id=$(extract_field "$share_json" permissionId)
+  if [ "$(echo "$EMAIL_TEST" | tr 'A-Z' 'a-z')" = "$(echo "$ACCOUNT" | tr 'A-Z' 'a-z')" ]; then
+    echo "==> drive share/unshare (skipped; test recipient is authenticated account)"
+  else
+    share_json=$(gog drive share "$file_id" --email "$EMAIL_TEST" --role reader --notify --json)
+    perms_json=$(gog drive permissions "$file_id" --json --max 50)
+    perm_id=$(extract_permission_id "$perms_json" "$EMAIL_TEST")
+    if [ -z "$perm_id" ]; then
+      perm_id=$(extract_field "$share_json" permissionId)
+    fi
+    [ -n "$perm_id" ] || { echo "Failed to parse permission id" >&2; exit 1; }
+    run_required "drive" "drive unshare" gog drive unshare "$file_id" "$perm_id" --force >/dev/null
   fi
-  [ -n "$perm_id" ] || { echo "Failed to parse permission id" >&2; exit 1; }
-  run_required "drive" "drive unshare" gog drive unshare "$file_id" "$perm_id" --force >/dev/null
 
   run_required "drive" "drive url" gog drive url "$file_id" --json >/dev/null
 

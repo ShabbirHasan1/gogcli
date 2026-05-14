@@ -285,10 +285,6 @@ type DriveMoveCmd struct {
 
 func (c *DriveMoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	fileID := strings.TrimSpace(c.FileID)
 	if fileID == "" {
 		return usage("empty fileId")
@@ -298,6 +294,17 @@ func (c *DriveMoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("missing --parent")
 	}
 
+	if err := dryRunExit(ctx, flags, "drive.move", map[string]any{
+		"fileId": fileID,
+		"parent": parent,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
@@ -341,10 +348,6 @@ type DriveRenameCmd struct {
 
 func (c *DriveRenameCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	fileID := strings.TrimSpace(c.FileID)
 	newName := strings.TrimSpace(c.NewName)
 	if fileID == "" {
@@ -354,6 +357,17 @@ func (c *DriveRenameCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty newName")
 	}
 
+	if err := dryRunExit(ctx, flags, "drive.rename", map[string]any{
+		"fileId":  fileID,
+		"newName": newName,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err

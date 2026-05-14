@@ -339,30 +339,43 @@ func contactsUpdateMaskFromKeys(keys map[string]json.RawMessage) ([]string, erro
 	return update, nil
 }
 
-func (c *ContactsUpdateCmd) updateFromJSON(ctx context.Context, svc *people.Service, resourceName string, u *ui.UI) error {
+func (c *ContactsUpdateCmd) readUpdateJSONInput(resourceName string) (*people.Person, []string, error) {
 	reader, closeFn, err := openFileOrStdin(strings.TrimSpace(c.FromFile))
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if closeFn != nil {
 		defer closeFn()
 	}
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return fmt.Errorf("read JSON: %w", err)
+		return nil, nil, fmt.Errorf("read JSON: %w", err)
 	}
 
 	inputPerson, presentKeys, err := parseContactsUpdateJSON(data)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	updateFields, err := contactsUpdateMaskFromKeys(presentKeys)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if len(updateFields) == 0 {
-		return usage("no updatable fields found in JSON (needs one of updatePersonFields fields like urls, biographies, ...)")
+		return nil, nil, usage("no updatable fields found in JSON (needs one of updatePersonFields fields like urls, biographies, ...)")
+	}
+
+	if strings.TrimSpace(inputPerson.ResourceName) != "" && strings.TrimSpace(inputPerson.ResourceName) != resourceName {
+		return nil, nil, usage("resourceName in JSON does not match CLI argument")
+	}
+
+	return inputPerson, updateFields, nil
+}
+
+func (c *ContactsUpdateCmd) updateFromJSON(ctx context.Context, svc *people.Service, resourceName string, u *ui.UI) error {
+	inputPerson, updateFields, err := c.readUpdateJSONInput(resourceName)
+	if err != nil {
+		return err
 	}
 
 	// Fetch current metadata/etag (required by updateContact).
@@ -376,10 +389,6 @@ func (c *ContactsUpdateCmd) updateFromJSON(ctx context.Context, svc *people.Serv
 		u.Err().Println("warning: JSON input is missing an etag; consider starting from `gog contacts get ... --json`")
 	} else if !c.IgnoreETag && curETag != "" && inputETag != curETag {
 		return usage("etag mismatch (contact changed). Re-run `gog contacts get ... --json`, re-apply edits, retry (or pass --ignore-etag).")
-	}
-
-	if strings.TrimSpace(inputPerson.ResourceName) != "" && strings.TrimSpace(inputPerson.ResourceName) != resourceName {
-		return usage("resourceName in JSON does not match CLI argument")
 	}
 
 	// Enforce resourceName and required metadata.

@@ -457,6 +457,15 @@ func (c *DocsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	c.Tab = tab
 
+	if dryRunErr := dryRunExit(ctx, flags, "docs.insert", map[string]any{
+		"documentId": docID,
+		"inserted":   len(content),
+		"atIndex":    c.Index,
+		"tab":        c.Tab,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
