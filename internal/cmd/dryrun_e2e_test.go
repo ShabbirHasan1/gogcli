@@ -3,11 +3,17 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
+	imagePath := filepath.Join(t.TempDir(), "dryrun.png")
+	if err := os.WriteFile(imagePath, []byte("dry-run image placeholder"), 0o644); err != nil {
+		t.Fatalf("write dry-run image: %v", err)
+	}
+
 	cases := []struct {
 		name string
 		args []string
@@ -34,9 +40,44 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "docs.insert",
 		},
 		{
+			name: "docs write replace",
+			args: []string{"docs", "write", "doc123", "--text", "hello", "--replace"},
+			op:   "docs.write",
+		},
+		{
+			name: "docs write append",
+			args: []string{"docs", "write", "doc123", "--text", "hello", "--append"},
+			op:   "docs.write",
+		},
+		{
+			name: "docs update",
+			args: []string{"docs", "update", "doc123", "--text", "hello", "--index", "1"},
+			op:   "docs.update",
+		},
+		{
+			name: "docs delete",
+			args: []string{"docs", "delete", "doc123", "--start", "1", "--end", "2"},
+			op:   "docs.delete",
+		},
+		{
+			name: "docs format",
+			args: []string{"docs", "format", "doc123", "--bold"},
+			op:   "docs.format",
+		},
+		{
+			name: "docs find replace",
+			args: []string{"docs", "find-replace", "doc123", "old", "new"},
+			op:   "docs.find-replace",
+		},
+		{
 			name: "docs export tab",
 			args: []string{"docs", "export", "doc123", "--tab", "Tab 1", "--format", "pdf", "--out", "/tmp/gog-dryrun-tab.pdf"},
 			op:   "docs.tab-export",
+		},
+		{
+			name: "drive mkdir",
+			args: []string{"drive", "mkdir", "SmokeFolder", "--parent", "root"},
+			op:   "drive.mkdir",
 		},
 		{
 			name: "drive move",
@@ -67,6 +108,16 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			name: "drive download tab",
 			args: []string{"drive", "download", "doc123", "--tab", "Tab 1", "--format", "pdf", "--out", "/tmp/gog-dryrun-drive-tab.pdf"},
 			op:   "docs.tab-export",
+		},
+		{
+			name: "drive changes watch",
+			args: []string{"drive", "changes", "watch", "--token", "token123", "--webhook-url", "https://example.com/hook", "--channel-id", "channel123"},
+			op:   "drive.changes.watch",
+		},
+		{
+			name: "drive changes stop",
+			args: []string{"drive", "changes", "stop", "channel123", "resource123"},
+			op:   "drive.changes.stop",
 		},
 		{
 			name: "admin groups members add",
@@ -159,6 +210,16 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "gmail.labels.delete",
 		},
 		{
+			name: "gmail label create",
+			args: []string{"gmail", "labels", "create", "SmokeLabel"},
+			op:   "gmail.labels.create",
+		},
+		{
+			name: "gmail label modify",
+			args: []string{"gmail", "labels", "modify", "thread123", "--add", "STARRED"},
+			op:   "gmail.labels.modify",
+		},
+		{
 			name: "gmail watch renew",
 			args: []string{"gmail", "watch", "renew", "--ttl", "1h"},
 			op:   "gmail.watch.renew",
@@ -182,6 +243,26 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			name: "slides create from template",
 			args: []string{"slides", "create-from-template", "template123", "SmokeSlides", "--replace", "NAME=World"},
 			op:   "slides.create-from-template",
+		},
+		{
+			name: "slides add slide",
+			args: []string{"slides", "add-slide", "pres123", imagePath, "--notes", "notes"},
+			op:   "slides.add-slide",
+		},
+		{
+			name: "slides delete slide",
+			args: []string{"slides", "delete-slide", "pres123", "slide123"},
+			op:   "slides.delete-slide",
+		},
+		{
+			name: "slides replace slide",
+			args: []string{"slides", "replace-slide", "pres123", "slide123", imagePath, "--notes", "notes"},
+			op:   "slides.replace-slide",
+		},
+		{
+			name: "slides update notes",
+			args: []string{"slides", "update-notes", "pres123", "slide123", "--notes", "notes"},
+			op:   "slides.update-notes",
 		},
 		{
 			name: "appscript create",
@@ -318,6 +399,14 @@ func TestDryRunE2E_ValidatesFormsAndSheetsLocalInputs(t *testing.T) {
 		{
 			name: "sheets conditional clear validates index before auth",
 			args: []string{"sheets", "conditional-format", "clear", "sheet123", "--sheet", "Sheet1", "--index", "-1"},
+		},
+		{
+			name: "docs write validates format flags before dry-run",
+			args: []string{"docs", "write", "doc123", "--text", "hello", "--font-size", "-1"},
+		},
+		{
+			name: "docs format validates colors before dry-run",
+			args: []string{"docs", "format", "doc123", "--text-color", "nope"},
 		},
 	}
 

@@ -178,14 +178,22 @@ type DriveMkdirCmd struct {
 
 func (c *DriveMkdirCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	name := strings.TrimSpace(c.Name)
 	if name == "" {
 		return usage("empty name")
+	}
+	parent := strings.TrimSpace(c.Parent)
+
+	if err := dryRunExit(ctx, flags, "drive.mkdir", map[string]any{
+		"name":   name,
+		"parent": parent,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)
@@ -197,8 +205,8 @@ func (c *DriveMkdirCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Name:     name,
 		MimeType: "application/vnd.google-apps.folder",
 	}
-	if strings.TrimSpace(c.Parent) != "" {
-		f.Parents = []string{strings.TrimSpace(c.Parent)}
+	if parent != "" {
+		f.Parents = []string{parent}
 	}
 
 	created, err := svc.Files.Create(f).

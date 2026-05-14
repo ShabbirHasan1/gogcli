@@ -18,11 +18,6 @@ type SlidesDeleteSlideCmd struct {
 func (c *SlidesDeleteSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	presentationID := strings.TrimSpace(c.PresentationID)
 	if presentationID == "" {
 		return usage("empty presentationId")
@@ -30,6 +25,18 @@ func (c *SlidesDeleteSlideCmd) Run(ctx context.Context, flags *RootFlags) error 
 	slideID := strings.TrimSpace(c.SlideID)
 	if slideID == "" {
 		return usage("empty slideId")
+	}
+
+	if err := dryRunExit(ctx, flags, "slides.delete-slide", map[string]any{
+		"presentation_id": presentationID,
+		"slide_id":        slideID,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	slidesSvc, err := newSlidesService(ctx, account)

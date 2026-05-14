@@ -26,6 +26,11 @@ type SlidesAddSlideCmd struct {
 func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
+	presentationID := strings.TrimSpace(c.PresentationID)
+	if presentationID == "" {
+		return usage("empty presentationId")
+	}
+
 	// Resolve notes: --notes-file takes precedence over --notes
 	var notes string
 	if c.NotesFile != "" {
@@ -36,16 +41,6 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 		notes = string(data)
 	} else {
 		notes = c.Notes
-	}
-
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	presentationID := strings.TrimSpace(c.PresentationID)
-	if presentationID == "" {
-		return usage("empty presentationId")
 	}
 
 	// Validate image format
@@ -60,6 +55,21 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 		mimeType = imageMimeGIF
 	default:
 		return fmt.Errorf("unsupported image format %q (use PNG, JPG, or GIF)", ext)
+	}
+
+	if err := dryRunExit(ctx, flags, "slides.add-slide", map[string]any{
+		"presentation_id": presentationID,
+		"image":           c.Image,
+		"mime_type":       mimeType,
+		"notes":           notes != "",
+		"before":          strings.TrimSpace(c.Before),
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	slidesSvc, err := newSlidesService(ctx, account)

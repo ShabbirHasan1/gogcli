@@ -57,6 +57,36 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	c.Tab = tab
 
+	if _, err := c.Format.buildRequests(1, 2, c.Tab); err != nil {
+		return err
+	}
+
+	if err := dryRunExit(ctx, flags, "docs.format", map[string]any{
+		"document_id": id,
+		"match":       c.Match,
+		"match_all":   c.MatchAll,
+		"match_case":  c.MatchCase,
+		"tab":         c.Tab,
+		"format": map[string]any{
+			"font_family":   c.Format.FontFamily,
+			"font_size":     c.Format.FontSize,
+			"text_color":    c.Format.TextColor,
+			"bg_color":      c.Format.BgColor,
+			"bold":          c.Format.Bold,
+			"no_bold":       c.Format.NoBold,
+			"italic":        c.Format.Italic,
+			"no_italic":     c.Format.NoItalic,
+			"underline":     c.Format.Underline,
+			"no_underline":  c.Format.NoUnderline,
+			"strikethrough": c.Format.Strikethrough,
+			"no_strike":     c.Format.NoStrike,
+			"alignment":     c.Format.Alignment,
+			"line_spacing":  c.Format.LineSpacing,
+		},
+	}); err != nil {
+		return err
+	}
+
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err

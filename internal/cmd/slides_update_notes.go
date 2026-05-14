@@ -28,11 +28,6 @@ func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("provide --notes or --notes-file")
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	presentationID := strings.TrimSpace(c.PresentationID)
 	if presentationID == "" {
 		return usage("empty presentationId")
@@ -40,6 +35,19 @@ func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error 
 	slideID := strings.TrimSpace(c.SlideID)
 	if slideID == "" {
 		return usage("empty slideId")
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "slides.update-notes", map[string]any{
+		"presentation_id": presentationID,
+		"slide_id":        slideID,
+		"notes_length":    len(notes),
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	slidesSvc, err := newSlidesService(ctx, account)

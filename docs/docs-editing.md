@@ -76,8 +76,8 @@ gog docs find-replace <docId> old '' --first
 gog docs find-replace <docId> PLACEHOLDER --content-file replacement.md --format markdown
 ```
 
-`--dry-run` is read-only and reports match counts. Empty replacement strings are
-allowed and delete matches.
+`--dry-run` is fully offline and reports the intended replacement without
+opening the document. Empty replacement strings are allowed and delete matches.
 
 Command page:
 

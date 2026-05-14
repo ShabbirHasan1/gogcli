@@ -74,14 +74,20 @@ type GmailLabelsCreateCmd struct {
 
 func (c *GmailLabelsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	name := strings.TrimSpace(c.Name)
 	if name == "" {
 		return usage("label name is required")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.labels.create", map[string]any{
+		"name": name,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -318,15 +324,27 @@ type GmailLabelsModifyCmd struct {
 
 func (c *GmailLabelsModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	threadIDs := c.ThreadIDs
+	if len(threadIDs) == 0 {
+		return usage("missing threadId")
+	}
 	addLabels := splitCSV(c.Add)
 	removeLabels := splitCSV(c.Remove)
 	if len(addLabels) == 0 && len(removeLabels) == 0 {
 		return usage("must specify --add and/or --remove")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.labels.modify", map[string]any{
+		"thread_ids": threadIDs,
+		"add":        addLabels,
+		"remove":     removeLabels,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)

@@ -30,11 +30,6 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	presentationID := strings.TrimSpace(c.PresentationID)
 	if presentationID == "" {
 		return usage("empty presentationId")
@@ -56,6 +51,22 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 		mimeType = imageMimeGIF
 	default:
 		return fmt.Errorf("unsupported image format %q (use PNG, JPG, or GIF)", ext)
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "slides.replace-slide", map[string]any{
+		"presentation_id": presentationID,
+		"slide_id":        slideID,
+		"image":           c.Image,
+		"mime_type":       mimeType,
+		"update_notes":    updateNotes,
+		"notes":           updateNotes && notes != "",
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	slidesSvc, err := newSlidesService(ctx, account)

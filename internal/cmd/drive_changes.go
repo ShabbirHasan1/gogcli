@@ -138,12 +138,17 @@ type DriveChangesWatchCmd struct {
 
 func (c *DriveChangesWatchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	_, svc, err := requireDriveService(ctx, flags)
-	if err != nil {
-		return err
+	token := strings.TrimSpace(c.Token)
+	webhookURL := strings.TrimSpace(c.WebhookURL)
+	if token == "" {
+		return usage("missing --token")
+	}
+	if webhookURL == "" {
+		return usage("missing --webhook-url")
 	}
 	channelID := strings.TrimSpace(c.ChannelID)
 	if channelID == "" {
+		var err error
 		channelID, err = randomChannelID()
 		if err != nil {
 			return err
@@ -152,17 +157,38 @@ func (c *DriveChangesWatchCmd) Run(ctx context.Context, flags *RootFlags) error 
 	channel := &drive.Channel{
 		Id:      channelID,
 		Type:    "web_hook",
-		Address: strings.TrimSpace(c.WebhookURL),
+		Address: webhookURL,
 		Token:   strings.TrimSpace(c.ChannelToken),
 	}
 	if c.ExpirationMS > 0 {
 		channel.Expiration = c.ExpirationMS
 	}
+	driveID := strings.TrimSpace(c.DriveID)
+	channelTokenState := ""
+	if channel.Token != "" {
+		channelTokenState = "provided"
+	}
 
-	call := svc.Changes.Watch(strings.TrimSpace(c.Token), channel).
+	if err := dryRunExit(ctx, flags, "drive.changes.watch", map[string]any{
+		"token":         token,
+		"webhook_url":   webhookURL,
+		"channel_id":    channelID,
+		"channel_token": channelTokenState,
+		"expiration_ms": c.ExpirationMS,
+		"drive_id":      driveID,
+	}); err != nil {
+		return err
+	}
+
+	_, svc, err := requireDriveService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	call := svc.Changes.Watch(token, channel).
 		SupportsAllDrives(true).
 		Context(ctx)
-	if driveID := strings.TrimSpace(c.DriveID); driveID != "" {
+	if driveID != "" {
 		call = call.DriveId(driveID)
 	}
 	resp, err := call.Do()
@@ -186,14 +212,22 @@ type DriveChangesStopCmd struct {
 
 func (c *DriveChangesStopCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	_, svc, err := requireDriveService(ctx, flags)
-	if err != nil {
-		return err
-	}
 	channelID := strings.TrimSpace(c.ChannelID)
 	resourceID := strings.TrimSpace(c.ResourceID)
 	if channelID == "" || resourceID == "" {
 		return usage("required: channelId resourceId")
+	}
+
+	if err := dryRunExit(ctx, flags, "drive.changes.stop", map[string]any{
+		"channel_id":  channelID,
+		"resource_id": resourceID,
+	}); err != nil {
+		return err
+	}
+
+	_, svc, err := requireDriveService(ctx, flags)
+	if err != nil {
+		return err
 	}
 	if err := svc.Channels.Stop(&drive.Channel{Id: channelID, ResourceId: resourceID}).Context(ctx).Do(); err != nil {
 		return err

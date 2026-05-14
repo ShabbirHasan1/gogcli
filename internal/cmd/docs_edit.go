@@ -90,6 +90,24 @@ func (c *DocsWriteCmd) resolveWriteText(kctx *kong.Context) (string, error) {
 }
 
 func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, docID, text string) error {
+	if c.Format.any() {
+		if _, err := c.Format.buildRequests(1, 1+utf16Len(text), c.Tab); err != nil {
+			return err
+		}
+	}
+
+	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+		"document_id": docID,
+		"written":     len(text),
+		"append":      c.Append,
+		"replace":     !c.Append,
+		"markdown":    false,
+		"pageless":    c.Pageless,
+		"tab":         c.Tab,
+	}); err != nil {
+		return err
+	}
+
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
@@ -208,6 +226,17 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	}
 
 	cleaned, images := extractMarkdownImages(content)
+	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+		"document_id": docID,
+		"written":     len(content),
+		"append":      false,
+		"replace":     true,
+		"markdown":    true,
+		"pageless":    c.Pageless,
+		"images":      len(images),
+	}); err != nil {
+		return err
+	}
 
 	account, driveSvc, err := requireDriveService(ctx, flags)
 	if err != nil {
@@ -270,6 +299,20 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 }
 
 func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
+	cleaned, images := extractMarkdownImages(content)
+	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+		"document_id": docID,
+		"written":     len(cleaned),
+		"append":      true,
+		"replace":     false,
+		"markdown":    true,
+		"pageless":    c.Pageless,
+		"tab":         c.Tab,
+		"images":      len(images),
+	}); err != nil {
+		return err
+	}
+
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
@@ -356,6 +399,20 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return tabErr
 	}
 	c.Tab = tab
+
+	var index any = "end"
+	if c.Index > 0 {
+		index = c.Index
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "docs.update", map[string]any{
+		"document_id": id,
+		"written":     len(text),
+		"index":       index,
+		"pageless":    c.Pageless,
+		"tab":         c.Tab,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
 
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
@@ -537,6 +594,16 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	c.Tab = tab
 
+	if err := dryRunExit(ctx, flags, "docs.delete", map[string]any{
+		"document_id": docID,
+		"start_index": c.Start,
+		"end_index":   c.End,
+		"deleted":     c.End - c.Start,
+		"tab":         c.Tab,
+	}); err != nil {
+		return err
+	}
+
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
@@ -647,6 +714,18 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return tabErr
 	}
 	c.Tab = tab
+
+	if dryRunErr := dryRunExit(ctx, flags, "docs.find-replace", map[string]any{
+		"document_id": docID,
+		"find":        c.Find,
+		"replace":     replaceText,
+		"format":      format,
+		"first":       c.First,
+		"match_case":  c.MatchCase,
+		"tab":         c.Tab,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
 
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {

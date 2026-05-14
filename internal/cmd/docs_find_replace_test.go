@@ -154,23 +154,13 @@ func TestDocsFindReplace_ZeroOccurrences(t *testing.T) {
 	}
 }
 
-func TestDocsFindReplace_DryRunCountsMatchesWithoutMutation(t *testing.T) {
+func TestDocsFindReplace_DryRunSkipsService(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
-
-	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
-			_ = json.NewEncoder(w).Encode(docBodyWithText("Draft and draft and Draft"))
-		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
-			t.Fatalf("dry-run must not call batchUpdate")
-		default:
-			http.NotFound(w, r)
-		}
-	})
-	defer cleanup()
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+	newDocsService = func(context.Context, string) (*docs.Service, error) {
+		t.Fatal("dry-run must not create docs service")
+		return nil, errors.New("unexpected docs service")
+	}
 
 	ctx := newDocsJSONContext(t)
 	flags := &RootFlags{Account: "a@b.com", DryRun: true}
@@ -184,37 +174,29 @@ func TestDocsFindReplace_DryRunCountsMatchesWithoutMutation(t *testing.T) {
 	})
 
 	var got struct {
-		DryRun  bool `json:"dry_run"`
+		DryRun  bool   `json:"dry_run"`
+		Op      string `json:"op"`
 		Request struct {
-			Replacements int `json:"replacements"`
-			Remaining    int `json:"remaining"`
+			DocumentID string `json:"document_id"`
+			Find       string `json:"find"`
+			Replace    string `json:"replace"`
 		} `json:"request"`
 	}
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("unmarshal: %v\noutput=%q", err, out)
 	}
-	if !got.DryRun || got.Request.Replacements != 3 || got.Request.Remaining != 0 {
+	if !got.DryRun || got.Op != "docs.find-replace" || got.Request.DocumentID != "doc1" || got.Request.Find != "draft" || got.Request.Replace != "final" {
 		t.Fatalf("unexpected dry-run payload: %#v", got)
 	}
 }
 
-func TestDocsFindReplace_DryRunFirstCountsOnlyOneReplacement(t *testing.T) {
+func TestDocsFindReplace_DryRunFirstReportsIntent(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
-
-	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
-			_ = json.NewEncoder(w).Encode(docBodyWithText("needle and needle"))
-		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
-			t.Fatalf("dry-run must not call batchUpdate")
-		default:
-			http.NotFound(w, r)
-		}
-	})
-	defer cleanup()
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+	newDocsService = func(context.Context, string) (*docs.Service, error) {
+		t.Fatal("dry-run must not create docs service")
+		return nil, errors.New("unexpected docs service")
+	}
 
 	ctx := newDocsJSONContext(t)
 	flags := &RootFlags{Account: "a@b.com", DryRun: true}
@@ -229,14 +211,13 @@ func TestDocsFindReplace_DryRunFirstCountsOnlyOneReplacement(t *testing.T) {
 
 	var got struct {
 		Request struct {
-			Replacements int `json:"replacements"`
-			Remaining    int `json:"remaining"`
+			First bool `json:"first"`
 		} `json:"request"`
 	}
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("unmarshal: %v\noutput=%q", err, out)
 	}
-	if got.Request.Replacements != 1 || got.Request.Remaining != 1 {
+	if !got.Request.First {
 		t.Fatalf("unexpected dry-run counts: %#v", got.Request)
 	}
 }
