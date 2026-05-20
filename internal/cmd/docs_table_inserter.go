@@ -74,36 +74,9 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 				continue
 			}
 
-			// Insert text into cell
-			insertTextReq := &docs.Request{
-				InsertText: &docs.InsertTextRequest{
-					Location: &docs.Location{
-						Index: cellIdx,
-					},
-					Text: cellContent,
-				},
-			}
-
-			// Make text bold if it's a header row
-			var boldReq *docs.Request
-			if rowIdx == 0 {
-				boldReq = &docs.Request{
-					UpdateTextStyle: &docs.UpdateTextStyleRequest{
-						Range: &docs.Range{
-							StartIndex: cellIdx,
-							EndIndex:   cellIdx + utf16Len(cellContent),
-						},
-						TextStyle: &docs.TextStyle{
-							Bold: true,
-						},
-						Fields: "bold",
-					},
-				}
-			}
-
-			requests := []*docs.Request{insertTextReq}
-			if boldReq != nil {
-				requests = append(requests, boldReq)
+			requests, insertedLen := buildTableCellRequests(cellContent, cellIdx, rowIdx == 0)
+			if len(requests) == 0 {
+				continue
 			}
 
 			_, err := ti.svc.Documents.BatchUpdate(ti.docID, &docs.BatchUpdateDocumentRequest{
@@ -114,11 +87,54 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 			}
 
 			// Update indices for subsequent cells (they shift by the content length)
-			ti.updateIndicesAfter(cellIdx, utf16Len(cellContent), cellIndices, &tableEndIndex)
+			ti.updateIndicesAfter(cellIdx, insertedLen, cellIndices, &tableEndIndex)
 		}
 	}
 
 	return tableEndIndex, nil
+}
+
+// buildTableCellRequests constructs the batch requests required to populate a
+// single table cell, expanding inline markdown (**bold**, *italic*, `code`,
+// [links]) into UpdateTextStyle requests on top of the inserted text. Header
+// cells additionally receive a whole-cell bold style. Returns the requests and
+// the UTF-16 length of the text that will be inserted so callers can keep
+// running cell indices in sync. If the cell content strips to an empty string
+// (e.g. content was only markers), returns (nil, 0).
+func buildTableCellRequests(cellContent string, cellIdx int64, isHeaderRow bool) ([]*docs.Request, int64) {
+	styles, stripped := ParseInlineFormatting(cellContent)
+	if stripped == "" {
+		return nil, 0
+	}
+
+	insertedLen := utf16Len(stripped)
+	requests := []*docs.Request{{
+		InsertText: &docs.InsertTextRequest{
+			Location: &docs.Location{Index: cellIdx},
+			Text:     stripped,
+		},
+	}}
+
+	if isHeaderRow {
+		requests = append(requests, &docs.Request{
+			UpdateTextStyle: &docs.UpdateTextStyleRequest{
+				Range: &docs.Range{
+					StartIndex: cellIdx,
+					EndIndex:   cellIdx + insertedLen,
+				},
+				TextStyle: &docs.TextStyle{Bold: true},
+				Fields:    "bold",
+			},
+		})
+	}
+
+	for _, style := range styles {
+		if req := buildTextStyleRequest(style, cellIdx, ""); req != nil {
+			requests = append(requests, req)
+		}
+	}
+
+	return requests, insertedLen
 }
 
 // getTableCellIndices extracts the start index for each cell in a table
