@@ -7,7 +7,7 @@ Store a service account key for impersonation
 ## Usage
 
 ```bash
-gog auth service-account set --key=STRING <email>
+gog auth service-account set <email> [flags]
 ```
 
 ## Parent
@@ -29,7 +29,9 @@ gog auth service-account set --key=STRING <email>
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
-| `--key` | `string` |  | Path to service account JSON key file |
+| `--key` | `string` |  | Path to service account JSON key file, or '-' for stdin |
+| `--key-env` | `string` |  | Read service account JSON key from the named environment variable |
+| `--key-stdin` | `bool` |  | Read service account JSON key from stdin |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

@@ -141,6 +141,14 @@ func TestExecute_GmailMessagesSearch_JSON_IncludeBody(t *testing.T) {
 								"data": encodeBase64URL("<strong>Total €99.99</strong>"),
 							},
 						},
+						{
+							"filename": "invite.ics",
+							"mimeType": "text/calendar",
+							"body": map[string]any{
+								"attachmentId": "att-ics",
+								"size":         2048,
+							},
+						},
 					},
 				},
 			})
@@ -182,6 +190,26 @@ func TestExecute_GmailMessagesSearch_JSON_IncludeBody(t *testing.T) {
 	}
 	if strings.Contains(out, "<strong>") {
 		t.Fatalf("expected text body by default, got: %q", out)
+	}
+	var parsed struct {
+		Messages []struct {
+			Attachments []struct {
+				Filename     string `json:"filename"`
+				MimeType     string `json:"mimeType"`
+				Size         int64  `json:"size"`
+				AttachmentID string `json:"attachmentId"`
+			} `json:"attachments"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("decode search json: %v", err)
+	}
+	if len(parsed.Messages) != 1 || len(parsed.Messages[0].Attachments) != 1 {
+		t.Fatalf("expected one attachment, got: %#v", parsed.Messages)
+	}
+	att := parsed.Messages[0].Attachments[0]
+	if att.Filename != "invite.ics" || att.MimeType != "text/calendar" || att.Size != 2048 || att.AttachmentID != "att-ics" {
+		t.Fatalf("unexpected attachment: %#v", att)
 	}
 
 	htmlOut := captureStdout(t, func() {

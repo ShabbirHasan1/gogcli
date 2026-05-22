@@ -57,6 +57,82 @@ func TestAuthServiceAccountSet_AndList_Text(t *testing.T) {
 	}
 }
 
+func TestAuthServiceAccountSet_ReadsKeyFromStdin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	key := `{"type":"service_account","client_email":"svc-stdin@example.com","client_id":"stdin-123"}`
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			withStdin(t, key, func() {
+				if err := Execute([]string{"auth", "service-account", "set", "stdin@example.com", "--key", "-"}); err != nil {
+					t.Fatalf("Execute --key=-: %v", err)
+				}
+			})
+		})
+	})
+	if !strings.Contains(out, "client_email\tsvc-stdin@example.com") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+
+	storedPath, err := config.ServiceAccountPath("stdin@example.com")
+	if err != nil {
+		t.Fatalf("ServiceAccountPath: %v", err)
+	}
+	stored, err := os.ReadFile(storedPath)
+	if err != nil {
+		t.Fatalf("read stored key: %v", err)
+	}
+	if !strings.Contains(string(stored), "svc-stdin@example.com") {
+		t.Fatalf("stored key did not come from stdin: %s", stored)
+	}
+}
+
+func TestAuthServiceAccountSet_ReadsKeyFromEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("SA_JSON", `{"type":"service_account","client_email":"svc-env@example.com","client_id":"env-123"}`)
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"auth", "service-account", "set", "env@example.com", "--key-env", "SA_JSON"}); err != nil {
+				t.Fatalf("Execute --key-env: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "client_id\tenv-123") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+
+	storedPath, err := config.ServiceAccountPath("env@example.com")
+	if err != nil {
+		t.Fatalf("ServiceAccountPath: %v", err)
+	}
+	stored, err := os.ReadFile(storedPath)
+	if err != nil {
+		t.Fatalf("read stored key: %v", err)
+	}
+	if !strings.Contains(string(stored), "svc-env@example.com") {
+		t.Fatalf("stored key did not come from env: %s", stored)
+	}
+}
+
+func TestAuthServiceAccountSet_RequiresOneKeySource(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("SA_JSON", `{"type":"service_account"}`)
+
+	if err := Execute([]string{"auth", "service-account", "set", "missing@example.com"}); err == nil {
+		t.Fatal("expected missing key source error")
+	}
+	if err := Execute([]string{"auth", "service-account", "set", "conflict@example.com", "--key", "-", "--key-env", "SA_JSON"}); err == nil {
+		t.Fatal("expected conflicting key source error")
+	}
+}
+
 func TestAuthServiceAccountStatus_MissingTextHasHint(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

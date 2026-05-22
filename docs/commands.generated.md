@@ -50,7 +50,7 @@ Generated from `gog schema --json`.
     - [`gog auth manage (login) [flags]`](commands/gog-auth-manage.md) - Open accounts manager in browser
     - [`gog auth remove <email>`](commands/gog-auth-remove.md) - Remove a stored refresh token
     - [`gog auth service-account <command>`](commands/gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
-      - [`gog auth service-account set --key=STRING <email>`](commands/gog-auth-service-account-set.md) - Store a service account key for impersonation
+      - [`gog auth service-account set <email> [flags]`](commands/gog-auth-service-account-set.md) - Store a service account key for impersonation
       - [`gog auth service-account status <email>`](commands/gog-auth-service-account-status.md) - Show stored service account key status
       - [`gog auth service-account unset <email>`](commands/gog-auth-service-account-unset.md) - Remove stored service account key
     - [`gog auth services [flags]`](commands/gog-auth-services.md) - List supported auth services and scopes

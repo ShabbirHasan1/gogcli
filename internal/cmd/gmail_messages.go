@@ -197,13 +197,14 @@ func (c *GmailMessagesModifyCmd) Run(ctx context.Context, flags *RootFlags) erro
 }
 
 type messageItem struct {
-	ID       string   `json:"id"`
-	ThreadID string   `json:"threadId,omitempty"`
-	Date     string   `json:"date,omitempty"`
-	From     string   `json:"from,omitempty"`
-	Subject  string   `json:"subject,omitempty"`
-	Labels   []string `json:"labels,omitempty"`
-	Body     string   `json:"body,omitempty"`
+	ID          string             `json:"id"`
+	ThreadID    string             `json:"threadId,omitempty"`
+	Date        string             `json:"date,omitempty"`
+	From        string             `json:"from,omitempty"`
+	Subject     string             `json:"subject,omitempty"`
+	Labels      []string           `json:"labels,omitempty"`
+	Body        string             `json:"body,omitempty"`
+	Attachments []attachmentOutput `json:"attachments,omitempty"`
 }
 
 func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gmail.Message, idToName map[string]string, loc *time.Location, includeBody bool, bodyFormat string) ([]messageItem, error) {
@@ -269,6 +270,7 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 				} else {
 					item.Body = bestBodyText(msg.Payload)
 				}
+				item.Attachments = attachmentOutputs(collectAttachments(msg.Payload))
 			}
 
 			if len(msg.LabelIds) > 0 {

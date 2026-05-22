@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Gmail: include attachment metadata in `gmail messages search --include-body --json` results. (#620)
+- Auth: let `auth service-account set` read service account keys from stdin (`--key=-` or `--key-stdin`) or an environment variable (`--key-env`). (#600)
 - Auth: serialize file-keyring reads and writes with a shared lock so concurrent `gog` processes cannot observe partial keyring entries or clobber multi-key token updates. (#597)
 - Release: verify the OpenClaw Homebrew tap checkout when checking `gogcli` formula assets.
 

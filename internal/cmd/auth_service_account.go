@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -43,8 +44,10 @@ func parseServiceAccountJSON(data []byte) (serviceAccountJSONInfo, error) {
 }
 
 type AuthServiceAccountSetCmd struct {
-	Email string `arg:"" name:"email" help:"Email to impersonate (Workspace user email)" required:""`
-	Key   string `name:"key" required:"" help:"Path to service account JSON key file"`
+	Email    string `arg:"" name:"email" help:"Email to impersonate (Workspace user email)" required:""`
+	Key      string `name:"key" help:"Path to service account JSON key file, or '-' for stdin"`
+	KeyStdin bool   `name:"key-stdin" help:"Read service account JSON key from stdin"`
+	KeyEnv   string `name:"key-env" help:"Read service account JSON key from the named environment variable"`
 }
 
 func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -55,18 +58,9 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("empty email")
 	}
 
-	keyPath := strings.TrimSpace(c.Key)
-	if keyPath == "" {
-		return usage("empty key path")
-	}
-	keyPath, err := config.ExpandPath(keyPath)
+	data, keySource, err := c.resolveServiceAccountKey()
 	if err != nil {
 		return err
-	}
-
-	data, err := os.ReadFile(keyPath) //nolint:gosec // user-provided path
-	if err != nil {
-		return fmt.Errorf("read service account key: %w", err)
 	}
 
 	info, err := parseServiceAccountJSON(data)
@@ -81,7 +75,7 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 
 	if err := dryRunExit(ctx, flags, "auth.service_account.set", map[string]any{
 		"email":        email,
-		"key_path":     keyPath,
+		"key_source":   keySource,
 		"dest_path":    destPath,
 		"client_email": info.ClientEmail,
 		"client_id":    info.ClientID,
@@ -115,6 +109,57 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 	}
 	u.Out().Println("Service account configured. Use: gog <cmd> --account " + email)
 	return nil
+}
+
+func (c *AuthServiceAccountSetCmd) resolveServiceAccountKey() ([]byte, string, error) {
+	keyPath := strings.TrimSpace(c.Key)
+	keyEnv := strings.TrimSpace(c.KeyEnv)
+
+	sources := 0
+	if keyPath != "" {
+		sources++
+	}
+	if c.KeyStdin {
+		sources++
+	}
+	if keyEnv != "" {
+		sources++
+	}
+	if sources == 0 {
+		return nil, "", usage("provide service account key with --key, --key=-, --key-stdin, or --key-env")
+	}
+	if sources > 1 {
+		return nil, "", usage("provide exactly one service account key source")
+	}
+
+	switch {
+	case c.KeyStdin || keyPath == "-":
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, "", fmt.Errorf("read service account key from stdin: %w", err)
+		}
+
+		return data, "stdin", nil
+	case keyEnv != "":
+		value, ok := os.LookupEnv(keyEnv)
+		if !ok {
+			return nil, "", usagef("environment variable %s is not set", keyEnv)
+		}
+
+		return []byte(value), "env:" + keyEnv, nil
+	default:
+		expanded, err := config.ExpandPath(keyPath)
+		if err != nil {
+			return nil, "", err
+		}
+
+		data, err := os.ReadFile(expanded) //nolint:gosec // user-provided path
+		if err != nil {
+			return nil, "", fmt.Errorf("read service account key: %w", err)
+		}
+
+		return data, expanded, nil
+	}
 }
 
 type AuthServiceAccountUnsetCmd struct {
