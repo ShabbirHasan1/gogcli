@@ -28,7 +28,7 @@ func (c *GmailHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	startID, err := parseHistoryID(c.Since)
 	if err != nil {
-		return err
+		return usage(err.Error())
 	}
 
 	svc, err := newGmailService(ctx, account)
