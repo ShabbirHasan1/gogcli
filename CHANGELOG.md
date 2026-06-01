@@ -34,6 +34,7 @@
 - Chat: validate reaction delete resource paths before dry-run instead of accepting invalid reaction delete requests.
 - Chat: reject malformed space, thread, and message resource paths before dry-run instead of accepting invalid Chat requests.
 - Chat: validate space member emails and `users/...` identifiers before dry-run instead of accepting invalid space setup requests.
+- Chat: return usage exit code 2 for non-positive list/find `--max` values before account/workspace setup.
 - Contacts: warm the People API contact-search cache, including Google's documented propagation wait, before contact and other-contact searches plus Gmail `--from-contact` resolution so fresh contact changes are visible.
 - Contacts: use an other-contact-safe read mask for `contacts other list` and `contacts other search` so Google does not reject the request.
 - Contacts: return usage exit code 2 for non-positive `contacts list/search --max` values before auth/API setup.

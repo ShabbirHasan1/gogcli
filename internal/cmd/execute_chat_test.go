@@ -108,6 +108,34 @@ func TestExecute_ChatSpacesList_ConsumerBlocked(t *testing.T) {
 	}
 }
 
+func TestExecute_ChatListInvalidMaxFailsBeforeWorkspaceCheck(t *testing.T) {
+	origNew := newChatService
+	t.Cleanup(func() { newChatService = origNew })
+	newChatService = func(context.Context, string) (*chat.Service, error) {
+		t.Fatalf("expected max validation to fail before creating chat service")
+		return nil, errUnexpectedChatServiceCall
+	}
+
+	cases := [][]string{
+		{"--account", "user@gmail.com", "chat", "spaces", "list", "--max", "0"},
+		{"--account", "user@gmail.com", "chat", "spaces", "list", "--max=-1"},
+		{"--account", "user@gmail.com", "chat", "spaces", "find", "Engineering", "--max", "0"},
+		{"--account", "user@gmail.com", "chat", "spaces", "find", "Engineering", "--max=-1"},
+		{"--account", "user@gmail.com", "chat", "messages", "list", "spaces/AAA", "--max", "0"},
+		{"--account", "user@gmail.com", "chat", "messages", "list", "spaces/AAA", "--max=-1"},
+		{"--account", "user@gmail.com", "chat", "threads", "list", "spaces/AAA", "--max", "0"},
+		{"--account", "user@gmail.com", "chat", "threads", "list", "spaces/AAA", "--max=-1"},
+	}
+	for _, args := range cases {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			err := Execute(args)
+			if ExitCode(err) != 2 || !strings.Contains(err.Error(), "max must be > 0") {
+				t.Fatalf("unexpected err: %v", err)
+			}
+		})
+	}
+}
+
 func TestExecute_ChatSpacesFind_JSON(t *testing.T) {
 	useFakeChatService(t, func(w http.ResponseWriter, r *http.Request) {
 		if !(r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/spaces")) {

@@ -99,6 +99,9 @@ func (c *ChatMessagesReactionsListCmd) Run(ctx context.Context, flags *RootFlags
 	if err != nil {
 		return usage("required: message (full resource path, or bare ID with --space)")
 	}
+	if c.Max <= 0 {
+		return usage("max must be > 0")
+	}
 
 	account, err := requireAccount(flags)
 	if err != nil {

@@ -475,6 +475,27 @@ func TestExecute_ChatMessagesReactionsList_JSON(t *testing.T) {
 	}
 }
 
+func TestExecute_ChatMessagesReactionsList_InvalidMaxFailsBeforeWorkspaceCheck(t *testing.T) {
+	origNew := newChatService
+	t.Cleanup(func() { newChatService = origNew })
+	newChatService = func(context.Context, string) (*chat.Service, error) {
+		t.Fatalf("expected max validation to fail before creating chat service")
+		return nil, errUnexpectedChatServiceCall
+	}
+
+	for _, args := range [][]string{
+		{"--account", "user@gmail.com", "chat", "messages", "reactions", "list", "spaces/AAA/messages/msg1", "--max", "0"},
+		{"--account", "user@gmail.com", "chat", "messages", "reactions", "list", "spaces/AAA/messages/msg1", "--max=-1"},
+	} {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			err := Execute(args)
+			if ExitCode(err) != 2 || !strings.Contains(err.Error(), "max must be > 0") {
+				t.Fatalf("unexpected err: %v", err)
+			}
+		})
+	}
+}
+
 func TestExecute_ChatMessagesReactionsDelete_Text(t *testing.T) {
 	origNew := newChatService
 	t.Cleanup(func() { newChatService = origNew })
