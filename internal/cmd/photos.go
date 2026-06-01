@@ -33,8 +33,8 @@ type PhotosListCmd struct {
 }
 
 func (c *PhotosListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	if c.Max <= 0 {
-		return usage("max must be > 0")
+	if err := validatePhotosMax(c.Max); err != nil {
+		return err
 	}
 	client, err := requirePhotosClient(ctx, flags)
 	if err != nil {
@@ -62,8 +62,8 @@ type PhotosSearchCmd struct {
 }
 
 func (c *PhotosSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
-	if c.Max <= 0 {
-		return usage("max must be > 0")
+	if err := validatePhotosMax(c.Max); err != nil {
+		return err
 	}
 	start, err := parsePhotosDateFlag(c.From, "--from")
 	if err != nil {
@@ -102,11 +102,15 @@ type PhotosGetCmd struct {
 }
 
 func (c *PhotosGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	mediaItemID := strings.TrimSpace(c.MediaItemID)
+	if mediaItemID == "" {
+		return usage("empty mediaItemId")
+	}
 	client, err := requirePhotosClient(ctx, flags)
 	if err != nil {
 		return err
 	}
-	item, err := client.GetMediaItem(ctx, c.MediaItemID)
+	item, err := client.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
 		return err
 	}
@@ -122,11 +126,15 @@ type PhotosDownloadCmd struct {
 
 func (c *PhotosDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	mediaItemID := strings.TrimSpace(c.MediaItemID)
+	if mediaItemID == "" {
+		return usage("empty mediaItemId")
+	}
 	client, err := requirePhotosClient(ctx, flags)
 	if err != nil {
 		return err
 	}
-	item, err := client.GetMediaItem(ctx, c.MediaItemID)
+	item, err := client.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
 		return err
 	}
@@ -205,6 +213,16 @@ func normalizePhotosPageSize(n int64) int64 {
 		return 100
 	}
 	return n
+}
+
+func validatePhotosMax(n int64) error {
+	if n <= 0 {
+		return usage("max must be > 0")
+	}
+	if n > 100 {
+		return usage("max must be <= 100")
+	}
+	return nil
 }
 
 func parsePhotosDateFlag(raw string, flag string) (*googleapi.PhotosDate, error) {

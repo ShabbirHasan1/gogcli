@@ -102,7 +102,7 @@
 - Keep: return usage exit code 2 for non-positive list/search `--max` values before service-account setup.
 - People: return an empty JSON array, not null, for `people relations --json` when a profile has no relation entries.
 - People: return usage exit code 2 for non-positive `people search --max` values before auth/API setup.
-- Photos: return usage exit code 2 for non-positive list/search `--max` values and invalid search date flags before auth/API setup.
+- Photos: return usage exit code 2 for invalid list/search `--max` values, empty media item IDs, and invalid search date flags before auth/API setup.
 - Search Console: validate sitemap feed URLs before submit/delete dry-runs instead of accepting invalid sitemap requests.
 - Tasks: return usage exit code 2 for invalid recurrence flags instead of reporting them as generic runtime failures.
 - Tasks: validate add/update due dates before dry-run and return usage exit code 2 for invalid task date values.
@@ -130,6 +130,7 @@
 - Slides: avoid invalid `deleteText` requests when updating speaker notes on a blank notes page.
 - Time: return usage exit code 2 for invalid `time now --timezone` values instead of reporting them as generic runtime failures.
 - YouTube: let `activities list --channel-id`, `playlists list --channel-id`, and `channels list --id` honor `--account` OAuth instead of requiring an API key.
+- YouTube: return usage exit code 2 for blank IDs, empty ID/type lists, and missing chart regions before auth/API-key setup.
 - YouTube: filter `youtube search list --type` output to the requested resource kinds when the API returns mixed results.
 - YouTube: return an empty JSON array, not null, when list responses contain no items.
 

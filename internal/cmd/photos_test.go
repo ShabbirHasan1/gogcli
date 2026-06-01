@@ -85,10 +85,14 @@ func TestPhotosValidationFailsBeforeClient(t *testing.T) {
 	}{
 		{name: "list zero max", args: []string{"--account", "a@b.com", "photos", "list", "--max", "0"}, want: "max must be > 0"},
 		{name: "list negative max", args: []string{"--account", "a@b.com", "photos", "list", "--max=-1"}, want: "max must be > 0"},
+		{name: "list max above api limit", args: []string{"--account", "a@b.com", "photos", "list", "--max", "101"}, want: "max must be <= 100"},
 		{name: "search zero max", args: []string{"--account", "a@b.com", "photos", "search", "--max", "0"}, want: "max must be > 0"},
 		{name: "search negative max", args: []string{"--account", "a@b.com", "photos", "search", "--max=-1"}, want: "max must be > 0"},
+		{name: "search max above api limit", args: []string{"--account", "a@b.com", "photos", "search", "--max", "101"}, want: "max must be <= 100"},
 		{name: "search bad from", args: []string{"--account", "a@b.com", "photos", "search", "--from", "nope"}, want: "--from must be YYYY-MM-DD"},
 		{name: "search bad to", args: []string{"--account", "a@b.com", "photos", "search", "--to", "nope"}, want: "--to must be YYYY-MM-DD"},
+		{name: "get empty id", args: []string{"--account", "a@b.com", "photos", "get", ""}, want: "empty mediaItemId"},
+		{name: "download empty id", args: []string{"--account", "a@b.com", "photos", "download", ""}, want: "empty mediaItemId"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

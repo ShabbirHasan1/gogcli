@@ -577,3 +577,100 @@ func TestYouTubeValidation(t *testing.T) {
 		t.Fatalf("expected mutually exclusive validation, got %v", err)
 	}
 }
+
+func TestYouTubeValidationRejectsBlankSelectorsBeforeService(t *testing.T) {
+	origOAuth := newYouTubeForAccount
+	origCommentsOAuth := newYouTubeCommentsForAccount
+	origAPIKey := newYouTubeWithAPIKey
+	t.Cleanup(func() {
+		newYouTubeForAccount = origOAuth
+		newYouTubeCommentsForAccount = origCommentsOAuth
+		newYouTubeWithAPIKey = origAPIKey
+	})
+	newYouTubeForAccount = func(context.Context, string) (*youtube.Service, error) {
+		t.Fatalf("expected validation to fail before OAuth YouTube service creation")
+		return nil, context.Canceled
+	}
+	newYouTubeCommentsForAccount = func(context.Context, string) (*youtube.Service, error) {
+		t.Fatalf("expected validation to fail before OAuth YouTube comments service creation")
+		return nil, context.Canceled
+	}
+	newYouTubeWithAPIKey = func(context.Context, string) (*youtube.Service, error) {
+		t.Fatalf("expected validation to fail before API-key YouTube service creation")
+		return nil, context.Canceled
+	}
+
+	ctx := newQuietUIContext(t)
+	flags := &RootFlags{Account: "me@example.com"}
+	tests := []struct {
+		name string
+		run  func() error
+		want string
+	}{
+		{
+			name: "videos empty csv ids",
+			run: func() error {
+				return runKong(t, &YouTubeVideosListCmd{}, []string{"--id", ",", "--max", "1"}, ctx, flags)
+			},
+			want: "set --id VIDEO_IDS or --chart mostPopular",
+		},
+		{
+			name: "channels empty csv ids",
+			run: func() error {
+				return runKong(t, &YouTubeChannelsListCmd{}, []string{"--id", ",", "--max", "1"}, ctx, flags)
+			},
+			want: "set --id CHANNEL_IDS or --mine",
+		},
+		{
+			name: "comments blank video",
+			run: func() error {
+				return runKong(t, &YouTubeCommentsListCmd{}, []string{"--video-id", " ", "--max", "1"}, ctx, flags)
+			},
+			want: "set --video-id ID or --channel-id ID",
+		},
+		{
+			name: "activities blank channel",
+			run: func() error {
+				return runKong(t, &YouTubeActivitiesListCmd{}, []string{"--channel-id", " ", "--max", "1"}, ctx, flags)
+			},
+			want: "set --channel-id ID or --mine",
+		},
+		{
+			name: "playlists blank channel",
+			run: func() error {
+				return runKong(t, &YouTubePlaylistsListCmd{}, []string{"--channel-id", " ", "--max", "1"}, ctx, flags)
+			},
+			want: "set --channel-id ID or --mine",
+		},
+		{
+			name: "chart blank region",
+			run: func() error {
+				return runKong(t, &YouTubeVideosListCmd{}, []string{"--chart", "mostPopular", "--region", " ", "--max", "1"}, ctx, flags)
+			},
+			want: "--chart mostPopular requires --region",
+		},
+		{
+			name: "search empty type csv",
+			run: func() error {
+				return runKong(t, &YouTubeSearchListCmd{}, []string{"query", "--type", ",", "--max", "1"}, ctx, flags)
+			},
+			want: "--type must be video, channel, or playlist",
+		},
+		{
+			name: "search blank query",
+			run: func() error {
+				return runKong(t, &YouTubeSearchListCmd{}, []string{" ", "--max", "1"}, ctx, flags)
+			},
+			want: "search query is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.run()
+			if err == nil || ExitCode(err) != 2 || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected usage error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
