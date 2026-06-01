@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -89,7 +88,7 @@ func (c *GmailSendAsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
-		return errors.New("email is required")
+		return usage("email is required")
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -129,7 +128,7 @@ func (c *GmailSendAsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	u := ui.FromContext(ctx)
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
-		return errors.New("email is required")
+		return usage("email is required")
 	}
 
 	sendAs := &gmail.SendAs{
@@ -179,7 +178,7 @@ func (c *GmailSendAsVerifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	u := ui.FromContext(ctx)
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
-		return errors.New("email is required")
+		return usage("email is required")
 	}
 
 	if err := dryRunExit(ctx, flags, "gmail.sendas.verify", map[string]any{
@@ -222,7 +221,7 @@ func (c *GmailSendAsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 	u := ui.FromContext(ctx)
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
-		return errors.New("email is required")
+		return usage("email is required")
 	}
 
 	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "gmail.sendas.delete", map[string]any{
@@ -270,7 +269,7 @@ func (c *GmailSendAsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flag
 	u := ui.FromContext(ctx)
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
-		return errors.New("email is required")
+		return usage("email is required")
 	}
 
 	updates := map[string]any{}

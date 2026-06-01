@@ -43,6 +43,7 @@
 - Gmail: return usage exit code 2 for invalid message formats and batch-modify label flags instead of reporting them as generic runtime failures.
 - Gmail: return usage exit code 2 when label rename, style, or delete commands reject immutable system labels.
 - Gmail: return usage exit code 2 when tracked send/setup options fail local validation.
+- Gmail: return usage exit code 2 when send-as commands receive an empty email argument.
 - Gmail: make `gmail track setup`, `gmail track status`, and `gmail track key rotate` honor `--json` on success without printing generated tracking secrets to stderr.
 - Gmail: return an empty JSON array, not null, for empty Gmail filter lists and JSON filter exports.
 - Gmail: return usage exit code 2 for invalid `gmail history --since` cursors instead of reporting them as generic runtime failures.
