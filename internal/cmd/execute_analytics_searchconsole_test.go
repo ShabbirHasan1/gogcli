@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	analyticsadminapi "google.golang.org/api/analyticsadmin/v1beta"
 	analyticsdataapi "google.golang.org/api/analyticsdata/v1beta"
-	"google.golang.org/api/option"
 	searchconsoleapi "google.golang.org/api/searchconsole/v1"
 )
 
@@ -351,10 +349,7 @@ func TestExecute_AnalyticsReport_ValidatesMetricsBeforeServiceCall(t *testing.T)
 }
 
 func TestExecute_SearchConsoleSites_Text(t *testing.T) {
-	origNew := newSearchConsoleService
-	t.Cleanup(func() { newSearchConsoleService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc := newSearchConsoleTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !(r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/webmasters/v3/sites")) {
 			http.NotFound(w, r)
 			return
@@ -366,35 +361,17 @@ func TestExecute_SearchConsoleSites_Text(t *testing.T) {
 			},
 		})
 	}))
-	defer srv.Close()
-
-	svc, err := searchconsoleapi.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
+	result := executeWithSearchConsoleTestService(t, []string{"--account", "a@b.com", "searchconsole", "sites"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
 	}
-	newSearchConsoleService = func(context.Context, string) (*searchconsoleapi.Service, error) { return svc, nil }
-
-	out := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--account", "a@b.com", "searchconsole", "sites"}); err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-		})
-	})
-	if !strings.Contains(out, "SITE") || !strings.Contains(out, "PERMISSION") || !strings.Contains(out, "sc-domain:example.com") || !strings.Contains(out, "SITE_OWNER") {
-		t.Fatalf("unexpected out=%q", out)
+	if !strings.Contains(result.stdout, "SITE") || !strings.Contains(result.stdout, "PERMISSION") || !strings.Contains(result.stdout, "sc-domain:example.com") || !strings.Contains(result.stdout, "SITE_OWNER") {
+		t.Fatalf("unexpected out=%q", result.stdout)
 	}
 }
 
 func TestExecute_SearchConsoleSites_JSON(t *testing.T) {
-	origNew := newSearchConsoleService
-	t.Cleanup(func() { newSearchConsoleService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc := newSearchConsoleTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !(r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/webmasters/v3/sites")) {
 			http.NotFound(w, r)
 			return
@@ -406,25 +383,10 @@ func TestExecute_SearchConsoleSites_JSON(t *testing.T) {
 			},
 		})
 	}))
-	defer srv.Close()
-
-	svc, err := searchconsoleapi.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
+	result := executeWithSearchConsoleTestService(t, []string{"--json", "--account", "a@b.com", "searchconsole", "sites"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
 	}
-	newSearchConsoleService = func(context.Context, string) (*searchconsoleapi.Service, error) { return svc, nil }
-
-	out := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "--account", "a@b.com", "searchconsole", "sites"}); err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-		})
-	})
 
 	var parsed struct {
 		Sites []struct {
@@ -432,7 +394,7 @@ func TestExecute_SearchConsoleSites_JSON(t *testing.T) {
 			PermissionLevel string `json:"permissionLevel"`
 		} `json:"sites"`
 	}
-	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if len(parsed.Sites) != 1 || parsed.Sites[0].SiteURL != "sc-domain:example.com" || parsed.Sites[0].PermissionLevel != "SITE_OWNER" {
@@ -441,25 +403,20 @@ func TestExecute_SearchConsoleSites_JSON(t *testing.T) {
 }
 
 func TestExecute_SearchConsoleSites_ServiceError(t *testing.T) {
-	origNew := newSearchConsoleService
-	t.Cleanup(func() { newSearchConsoleService = origNew })
-	newSearchConsoleService = func(context.Context, string) (*searchconsoleapi.Service, error) {
-		return nil, errors.New("search console service down")
+	result := executeWithSearchConsoleTestServiceFactory(
+		t,
+		[]string{"--account", "a@b.com", "searchconsole", "sites"},
+		func(context.Context, string) (*searchconsoleapi.Service, error) {
+			return nil, errors.New("search console service down")
+		},
+	)
+	if result.err == nil || !strings.Contains(result.err.Error(), "search console service down") {
+		t.Fatalf("unexpected err: %v", result.err)
 	}
-
-	_ = captureStderr(t, func() {
-		err := Execute([]string{"--account", "a@b.com", "searchconsole", "sites"})
-		if err == nil || !strings.Contains(err.Error(), "search console service down") {
-			t.Fatalf("unexpected err: %v", err)
-		}
-	})
 }
 
 func TestExecute_SearchConsoleQuery_JSON(t *testing.T) {
-	origNew := newSearchConsoleService
-	t.Cleanup(func() { newSearchConsoleService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc := newSearchConsoleTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !(r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/searchAnalytics/query")) {
 			http.NotFound(w, r)
 			return
@@ -489,34 +446,19 @@ func TestExecute_SearchConsoleQuery_JSON(t *testing.T) {
 			},
 		})
 	}))
-	defer srv.Close()
-
-	svc, err := searchconsoleapi.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
+	result := executeWithSearchConsoleTestService(t, []string{
+		"--json",
+		"--account", "a@b.com",
+		"searchconsole", "query", "sc-domain:example.com",
+		"--from", "2026-02-01",
+		"--to", "2026-02-07",
+		"--dimensions", "query,page",
+		"--type", "web",
+		"--max", "10",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
 	}
-	newSearchConsoleService = func(context.Context, string) (*searchconsoleapi.Service, error) { return svc, nil }
-
-	out := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if err := Execute([]string{
-				"--json",
-				"--account", "a@b.com",
-				"searchconsole", "query", "sc-domain:example.com",
-				"--from", "2026-02-01",
-				"--to", "2026-02-07",
-				"--dimensions", "query,page",
-				"--type", "web",
-				"--max", "10",
-			}); err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-		})
-	})
 
 	var parsed struct {
 		SiteURL string `json:"site_url"`
@@ -525,7 +467,7 @@ func TestExecute_SearchConsoleQuery_JSON(t *testing.T) {
 			Keys []string `json:"keys"`
 		} `json:"rows"`
 	}
-	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if parsed.SiteURL != "sc-domain:example.com" || parsed.Type != "WEB" || len(parsed.Rows) != 1 || len(parsed.Rows[0].Keys) != 2 {
@@ -534,10 +476,7 @@ func TestExecute_SearchConsoleQuery_JSON(t *testing.T) {
 }
 
 func TestExecute_SearchConsoleQuery_Text(t *testing.T) {
-	origNew := newSearchConsoleService
-	t.Cleanup(func() { newSearchConsoleService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc := newSearchConsoleTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !(r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/searchAnalytics/query")) {
 			http.NotFound(w, r)
 			return
@@ -556,84 +495,62 @@ func TestExecute_SearchConsoleQuery_Text(t *testing.T) {
 			},
 		})
 	}))
-	defer srv.Close()
-
-	svc, err := searchconsoleapi.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
+	result := executeWithSearchConsoleTestService(t, []string{
+		"--account", "a@b.com",
+		"searchconsole", "query", "sc-domain:example.com",
+		"--from", "2026-02-01",
+		"--to", "2026-02-07",
+		"--dimensions", "query,page",
+		"--type", "web",
+		"--max", "10",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
 	}
-	newSearchConsoleService = func(context.Context, string) (*searchconsoleapi.Service, error) { return svc, nil }
-
-	out := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if err := Execute([]string{
-				"--account", "a@b.com",
-				"searchconsole", "query", "sc-domain:example.com",
-				"--from", "2026-02-01",
-				"--to", "2026-02-07",
-				"--dimensions", "query,page",
-				"--type", "web",
-				"--max", "10",
-			}); err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-		})
-	})
-	if !strings.Contains(out, "QUERY") ||
-		!strings.Contains(out, "PAGE") ||
-		!strings.Contains(out, "CLICKS") ||
-		!strings.Contains(out, "IMPRESSIONS") ||
-		!strings.Contains(out, "CTR") ||
-		!strings.Contains(out, "POSITION") ||
-		!strings.Contains(out, "gog cli") ||
-		!strings.Contains(out, "https://example.com/docs") ||
-		!strings.Contains(out, "12") ||
-		!strings.Contains(out, "300") {
-		t.Fatalf("unexpected out=%q", out)
+	if !strings.Contains(result.stdout, "QUERY") ||
+		!strings.Contains(result.stdout, "PAGE") ||
+		!strings.Contains(result.stdout, "CLICKS") ||
+		!strings.Contains(result.stdout, "IMPRESSIONS") ||
+		!strings.Contains(result.stdout, "CTR") ||
+		!strings.Contains(result.stdout, "POSITION") ||
+		!strings.Contains(result.stdout, "gog cli") ||
+		!strings.Contains(result.stdout, "https://example.com/docs") ||
+		!strings.Contains(result.stdout, "12") ||
+		!strings.Contains(result.stdout, "300") {
+		t.Fatalf("unexpected out=%q", result.stdout)
 	}
 }
 
 func TestExecute_SearchConsoleQuery_ServiceError(t *testing.T) {
-	origNew := newSearchConsoleService
-	t.Cleanup(func() { newSearchConsoleService = origNew })
-	newSearchConsoleService = func(context.Context, string) (*searchconsoleapi.Service, error) {
-		return nil, errors.New("search console service down")
-	}
-
-	_ = captureStderr(t, func() {
-		err := Execute([]string{
+	result := executeWithSearchConsoleTestServiceFactory(
+		t,
+		[]string{
 			"--account", "a@b.com",
 			"searchconsole", "query", "sc-domain:example.com",
 			"--from", "2026-02-01",
 			"--to", "2026-02-07",
-		})
-		if err == nil || !strings.Contains(err.Error(), "search console service down") {
-			t.Fatalf("unexpected err: %v", err)
-		}
-	})
+		},
+		func(context.Context, string) (*searchconsoleapi.Service, error) {
+			return nil, errors.New("search console service down")
+		},
+	)
+	if result.err == nil || !strings.Contains(result.err.Error(), "search console service down") {
+		t.Fatalf("unexpected err: %v", result.err)
+	}
 }
 
 func TestExecute_SearchConsoleQuery_ValidatesDateBeforeServiceCall(t *testing.T) {
-	origNew := newSearchConsoleService
-	t.Cleanup(func() { newSearchConsoleService = origNew })
-	newSearchConsoleService = func(context.Context, string) (*searchconsoleapi.Service, error) {
-		t.Fatalf("expected validation to fail before creating search console service")
-		return nil, errors.New("unexpected search console service call")
-	}
-
-	_ = captureStderr(t, func() {
-		err := Execute([]string{
+	result := executeWithSearchConsoleTestServiceFactory(
+		t,
+		[]string{
 			"--account", "a@b.com",
 			"searchconsole", "query", "sc-domain:example.com",
 			"--from", "2026/02/01",
 			"--to", "2026-02-07",
-		})
-		if err == nil || !strings.Contains(err.Error(), "invalid --from") {
-			t.Fatalf("unexpected err: %v", err)
-		}
-	})
+		},
+		unexpectedSearchConsoleTestService(t, "expected validation to fail before creating search console service"),
+	)
+	if result.err == nil || !strings.Contains(result.err.Error(), "invalid --from") {
+		t.Fatalf("unexpected err: %v", result.err)
+	}
 }
