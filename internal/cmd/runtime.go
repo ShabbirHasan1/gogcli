@@ -22,7 +22,7 @@ func newDefaultRuntime() *app.Runtime {
 		},
 		Services: app.Services{
 			Drive:         googleapi.NewDrive,
-			Slides:        newSlidesService,
+			Slides:        googleapi.NewSlides,
 			DriveDownload: driveDownload,
 			DriveExport:   driveExportDownload,
 		},
@@ -90,7 +90,7 @@ func slidesService(ctx context.Context, account string) (*slides.Service, error)
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.Slides != nil {
 		return runtime.Services.Slides(ctx, account)
 	}
-	return newSlidesService(ctx, account)
+	return googleapi.NewSlides(ctx, account)
 }
 
 func driveDownloadRequest(ctx context.Context, svc *drive.Service, fileID string) (*http.Response, error) {
