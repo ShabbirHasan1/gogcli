@@ -200,67 +200,28 @@ type ClassroomCourseworkCreateCmd struct {
 
 func (c *ClassroomCourseworkCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	courseID := strings.TrimSpace(c.CourseID)
-	if courseID == "" {
-		return usage("empty courseId")
-	}
-	if strings.TrimSpace(c.Title) == "" {
-		return usage("empty title")
-	}
-
-	work := &classroom.CourseWork{
-		Title:       strings.TrimSpace(c.Title),
-		Description: strings.TrimSpace(c.Description),
-		WorkType:    strings.ToUpper(strings.TrimSpace(c.WorkType)),
-	}
-	if v := strings.TrimSpace(c.State); v != "" {
-		work.State = strings.ToUpper(v)
-	}
-	if c.MaxPoints != 0 {
-		work.MaxPoints = c.MaxPoints
-	}
-	if v := strings.TrimSpace(c.TopicID); v != "" {
-		work.TopicId = v
-	}
-	if v := strings.TrimSpace(c.Scheduled); v != "" {
-		work.ScheduledTime = v
-	}
-
-	var err error
-	var dueDate *classroom.Date
-	var dueTime *classroom.TimeOfDay
-	if strings.TrimSpace(c.Due) != "" {
-		dueDate, dueTime, err = parseClassroomDue(c.Due)
-		if err != nil {
-			return usage(err.Error())
-		}
-	} else {
-		if strings.TrimSpace(c.DueDate) != "" {
-			dueDate, err = parseClassroomDate(c.DueDate)
-			if err != nil {
-				return usage(err.Error())
-			}
-		}
-		if strings.TrimSpace(c.DueTime) != "" {
-			dueTime, err = parseClassroomTime(c.DueTime)
-			if err != nil {
-				return usage(err.Error())
-			}
-		}
-	}
-	if dueTime != nil && dueDate == nil {
-		return usage("due time requires a due date")
-	}
-	if dueDate != nil {
-		work.DueDate = dueDate
-	}
-	if dueTime != nil {
-		work.DueTime = dueTime
+	plan, err := buildClassroomCourseworkCreatePlan(classroomCourseworkCreateInput{
+		classroomCourseworkInput: classroomCourseworkInput{
+			CourseID:    c.CourseID,
+			Title:       c.Title,
+			Description: c.Description,
+			State:       c.State,
+			MaxPoints:   c.MaxPoints,
+			Due:         c.Due,
+			DueDate:     c.DueDate,
+			DueTime:     c.DueTime,
+			Scheduled:   c.Scheduled,
+			TopicID:     c.TopicID,
+		},
+		WorkType: c.WorkType,
+	})
+	if err != nil {
+		return err
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "classroom.coursework.create", map[string]any{
-		"course_id":  courseID,
-		"coursework": work,
+		"course_id":  plan.CourseID,
+		"coursework": plan.Coursework,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -270,7 +231,7 @@ func (c *ClassroomCourseworkCreateCmd) Run(ctx context.Context, flags *RootFlags
 		return wrapClassroomError(err)
 	}
 
-	created, err := svc.Courses.CourseWork.Create(courseID, work).Context(ctx).Do()
+	created, err := svc.Courses.CourseWork.Create(plan.CourseID, plan.Coursework).Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -300,87 +261,31 @@ type ClassroomCourseworkUpdateCmd struct {
 
 func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	courseID := strings.TrimSpace(c.CourseID)
-	courseworkID := strings.TrimSpace(c.CourseworkID)
-	if courseID == "" {
-		return usage("empty courseId")
-	}
-	if courseworkID == "" {
-		return usage("empty courseworkId")
-	}
-
-	work := &classroom.CourseWork{}
-	fields := make([]string, 0, 6)
-
-	if v := strings.TrimSpace(c.Title); v != "" {
-		work.Title = v
-		fields = append(fields, "title")
-	}
-	if v := strings.TrimSpace(c.Description); v != "" {
-		work.Description = v
-		fields = append(fields, "description")
-	}
-	if v := strings.TrimSpace(c.State); v != "" {
-		work.State = strings.ToUpper(v)
-		fields = append(fields, "state")
-	}
-	if c.MaxPoints != 0 {
-		work.MaxPoints = c.MaxPoints
-		fields = append(fields, "maxPoints")
-	}
-	if v := strings.TrimSpace(c.TopicID); v != "" {
-		work.TopicId = v
-		fields = append(fields, "topicId")
-	}
-	if v := strings.TrimSpace(c.Scheduled); v != "" {
-		work.ScheduledTime = v
-		fields = append(fields, "scheduledTime")
-	}
-
-	var err error
-	var dueDate *classroom.Date
-	var dueTime *classroom.TimeOfDay
-	if strings.TrimSpace(c.Due) != "" {
-		dueDate, dueTime, err = parseClassroomDue(c.Due)
-		if err != nil {
-			return usage(err.Error())
-		}
-	} else {
-		if strings.TrimSpace(c.DueDate) != "" {
-			dueDate, err = parseClassroomDate(c.DueDate)
-			if err != nil {
-				return usage(err.Error())
-			}
-		}
-		if strings.TrimSpace(c.DueTime) != "" {
-			dueTime, err = parseClassroomTime(c.DueTime)
-			if err != nil {
-				return usage(err.Error())
-			}
-		}
-	}
-	if dueTime != nil && dueDate == nil {
-		return usage("due time requires a due date")
-	}
-	if dueDate != nil {
-		work.DueDate = dueDate
-		fields = append(fields, "dueDate")
-	}
-	if dueTime != nil {
-		work.DueTime = dueTime
-		fields = append(fields, "dueTime")
-	}
-
-	if len(fields) == 0 {
-		return usage("no updates specified")
+	plan, err := buildClassroomCourseworkUpdatePlan(classroomCourseworkUpdateInput{
+		classroomCourseworkInput: classroomCourseworkInput{
+			CourseID:    c.CourseID,
+			Title:       c.Title,
+			Description: c.Description,
+			State:       c.State,
+			MaxPoints:   c.MaxPoints,
+			Due:         c.Due,
+			DueDate:     c.DueDate,
+			DueTime:     c.DueTime,
+			Scheduled:   c.Scheduled,
+			TopicID:     c.TopicID,
+		},
+		CourseworkID: c.CourseworkID,
+	})
+	if err != nil {
+		return err
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "classroom.coursework.update", map[string]any{
-		"course_id":     courseID,
-		"coursework_id": courseworkID,
-		"update_mask":   updateMask(fields),
-		"update_fields": fields,
-		"coursework":    work,
+		"course_id":     plan.CourseID,
+		"coursework_id": plan.CourseworkID,
+		"update_mask":   plan.UpdateMask,
+		"update_fields": plan.UpdateFields,
+		"coursework":    plan.Coursework,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -390,7 +295,7 @@ func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags
 		return wrapClassroomError(err)
 	}
 
-	updated, err := svc.Courses.CourseWork.Patch(courseID, courseworkID, work).UpdateMask(updateMask(fields)).Context(ctx).Do()
+	updated, err := svc.Courses.CourseWork.Patch(plan.CourseID, plan.CourseworkID, plan.Coursework).UpdateMask(plan.UpdateMask).Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
