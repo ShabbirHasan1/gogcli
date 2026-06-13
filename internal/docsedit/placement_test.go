@@ -267,6 +267,117 @@ func TestPlanRangePlacement(t *testing.T) {
 	}
 }
 
+func TestResolvePlacement(t *testing.T) {
+	t.Parallel()
+
+	anchor := TextRange{
+		StartIndex: 7,
+		EndIndex:   12,
+		TabID:      "t.second",
+		InTable:    true,
+	}
+	tests := []struct {
+		name      string
+		placement Placement
+		facts     PlacementFacts
+		want      ResolvedPlacement
+		wantErr   string
+	}{
+		{
+			name:      "end",
+			placement: Placement{Kind: PlacementEnd},
+			facts:     PlacementFacts{EndIndex: 42, TabID: "t.second"},
+			want:      ResolvedPlacement{Index: 41, TabID: "t.second"},
+		},
+		{
+			name:      "empty end",
+			placement: Placement{Kind: PlacementEnd},
+			want:      ResolvedPlacement{Index: 1},
+		},
+		{
+			name:      "index",
+			placement: Placement{Kind: PlacementIndex, Index: 9},
+			facts:     PlacementFacts{TabID: "t.second"},
+			want:      ResolvedPlacement{Index: 9, TabID: "t.second"},
+		},
+		{
+			name: "range",
+			placement: Placement{
+				Kind:  PlacementRange,
+				Range: Range{Start: 3, End: 8},
+			},
+			facts: PlacementFacts{TabID: "t.second"},
+			want: ResolvedPlacement{
+				Index: 3,
+				Range: &Range{Start: 3, End: 8},
+				TabID: "t.second",
+			},
+		},
+		{
+			name:      "anchor",
+			placement: Placement{Kind: PlacementAnchor},
+			facts: PlacementFacts{
+				Anchor:             &anchor,
+				RequiredRevisionID: "rev-1",
+			},
+			want: ResolvedPlacement{
+				Index:              7,
+				Range:              &Range{Start: 7, End: 12},
+				TabID:              "t.second",
+				RequiredRevisionID: "rev-1",
+				Anchored:           true,
+				InTable:            true,
+			},
+		},
+		{
+			name:      "missing anchor",
+			placement: Placement{Kind: PlacementAnchor},
+			wantErr:   "missing anchor match",
+		},
+		{
+			name:      "unsupported",
+			placement: Placement{Kind: PlacementKind(99)},
+			wantErr:   "unsupported placement kind",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ResolvePlacement(test.placement, test.facts)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("error = %v, want %q", err, test.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ResolvePlacement: %v", err)
+			}
+
+			if got.Index != test.want.Index ||
+				got.TabID != test.want.TabID ||
+				got.RequiredRevisionID != test.want.RequiredRevisionID ||
+				got.Anchored != test.want.Anchored ||
+				got.InTable != test.want.InTable {
+				t.Fatalf("placement = %#v, want %#v", got, test.want)
+			}
+
+			switch {
+			case got.Range == nil && test.want.Range == nil:
+			case got.Range == nil || test.want.Range == nil:
+				t.Fatalf("range = %#v, want %#v", got.Range, test.want.Range)
+			case *got.Range != *test.want.Range:
+				t.Fatalf("range = %#v, want %#v", got.Range, test.want.Range)
+			}
+		})
+	}
+}
+
 func assertPlacementResult(t *testing.T, got Placement, err error, want Placement, wantErr string) {
 	t.Helper()
 

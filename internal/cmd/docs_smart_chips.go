@@ -202,21 +202,27 @@ func runDocsSingleInsert(ctx context.Context, flags *RootFlags, action string, l
 	if err != nil {
 		return err
 	}
-	insertIndex, tabID, matched, err := resolveDocsInsertLocation(ctx, svc, docID, loc, placement)
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, loc.tab, placement)
 	if err != nil {
 		return err
 	}
+	insertIndex := resolvedPlacement.Index
+	tabID := resolvedPlacement.TabID
 	setDocsInsertRequestLocation(req, insertIndex, tabID)
 	reqs := make([]*docs.Request, 0, 2)
-	if loc.replaceAt && matched != nil {
+	if loc.replaceAt && resolvedPlacement.Anchored {
 		reqs = append(reqs, &docs.Request{DeleteContentRange: &docs.DeleteContentRangeRequest{
-			Range: &docs.Range{StartIndex: matched.Match.StartIndex, EndIndex: matched.Match.EndIndex, TabId: tabID},
+			Range: &docs.Range{
+				StartIndex: resolvedPlacement.Range.Start,
+				EndIndex:   resolvedPlacement.Range.End,
+				TabId:      tabID,
+			},
 		}})
 	}
 	reqs = append(reqs, req)
-	batchReq := &docs.BatchUpdateDocumentRequest{Requests: reqs}
-	if matched != nil {
-		batchReq.WriteControl = docsRequiredRevisionWriteControl(matched.RevisionID)
+	batchReq := &docs.BatchUpdateDocumentRequest{
+		Requests:     reqs,
+		WriteControl: docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID),
 	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, loc.batch, docID, action, batchRevision, reqs, false); queued || queueErr != nil {
 		return queueErr
@@ -298,40 +304,6 @@ func planDocsInsertLocation(loc docsInsertLocationFlags) (docsedit.Placement, er
 		return docsedit.Placement{}, usage(err.Error())
 	}
 	return placement, nil
-}
-
-func resolveDocsInsertLocation(ctx context.Context, svc *docs.Service, docID string, loc docsInsertLocationFlags, placement docsedit.Placement) (int64, string, *docsResolvedAtAnchor, error) {
-	switch placement.Kind {
-	case docsedit.PlacementAnchor:
-		match, err := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-			At:         placement.Anchor.Text,
-			Occurrence: placement.Anchor.Occurrence,
-			MatchCase:  placement.Anchor.MatchCase,
-			Tab:        loc.tab,
-		})
-		if err != nil {
-			return 0, "", nil, err
-		}
-		return match.Match.StartIndex, match.Match.TabID, &match, nil
-	case docsedit.PlacementEnd:
-		endIndex, tabID, err := docsTargetEndIndexAndTabID(ctx, svc, docID, loc.tab)
-		if err != nil {
-			return 0, "", nil, err
-		}
-		return docsAppendIndex(endIndex), tabID, nil, nil
-	case docsedit.PlacementIndex:
-		tabID := ""
-		if strings.TrimSpace(loc.tab) != "" {
-			resolved, err := resolveDocsTabID(ctx, svc, docID, loc.tab)
-			if err != nil {
-				return 0, "", nil, err
-			}
-			tabID = resolved
-		}
-		return placement.Index, tabID, nil, nil
-	default:
-		return 0, "", nil, fmt.Errorf("unsupported Docs insert placement: %d", placement.Kind)
-	}
 }
 
 func setDocsInsertRequestLocation(req *docs.Request, index int64, tabID string) {

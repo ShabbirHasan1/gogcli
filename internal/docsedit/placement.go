@@ -1,6 +1,15 @@
 package docsedit
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+var (
+	errMissingAnchorMatch       = errors.New("missing anchor match")
+	errUnsupportedPlacementKind = errors.New("unsupported placement kind")
+)
 
 type PlacementKind uint8
 
@@ -47,6 +56,22 @@ type RangePlacementOptions struct {
 	Start  *int64
 	End    *int64
 	Anchor AnchorOptions
+}
+
+type PlacementFacts struct {
+	EndIndex           int64
+	TabID              string
+	Anchor             *TextRange
+	RequiredRevisionID string
+}
+
+type ResolvedPlacement struct {
+	Index              int64
+	Range              *Range
+	TabID              string
+	RequiredRevisionID string
+	Anchored           bool
+	InTable            bool
 }
 
 func ValidateAnchor(options AnchorOptions) error {
@@ -171,6 +196,61 @@ func PlanRangePlacement(options RangePlacementOptions) (Placement, error) {
 		Kind:  PlacementRange,
 		Range: Range{Start: *options.Start, End: *options.End},
 	}, nil
+}
+
+func ResolvePlacement(placement Placement, facts PlacementFacts) (ResolvedPlacement, error) {
+	switch placement.Kind {
+	case PlacementEnd:
+		return ResolvedPlacement{
+			Index: AppendIndex(facts.EndIndex),
+			TabID: facts.TabID,
+		}, nil
+	case PlacementIndex:
+		return ResolvedPlacement{
+			Index: placement.Index,
+			TabID: facts.TabID,
+		}, nil
+	case PlacementRange:
+		target := placement.Range
+
+		return ResolvedPlacement{
+			Index: target.Start,
+			Range: &target,
+			TabID: facts.TabID,
+		}, nil
+	case PlacementAnchor:
+		if facts.Anchor == nil {
+			return ResolvedPlacement{}, fmt.Errorf("resolve anchor placement: %w", errMissingAnchorMatch)
+		}
+
+		target := Range{
+			Start: facts.Anchor.StartIndex,
+			End:   facts.Anchor.EndIndex,
+		}
+
+		return ResolvedPlacement{
+			Index:              target.Start,
+			Range:              &target,
+			TabID:              facts.Anchor.TabID,
+			RequiredRevisionID: facts.RequiredRevisionID,
+			Anchored:           true,
+			InTable:            facts.Anchor.InTable,
+		}, nil
+	default:
+		return ResolvedPlacement{}, fmt.Errorf(
+			"resolve placement kind %d: %w",
+			placement.Kind,
+			errUnsupportedPlacementKind,
+		)
+	}
+}
+
+func AppendIndex(endIndex int64) int64 {
+	if endIndex > 1 {
+		return endIndex - 1
+	}
+
+	return 1
 }
 
 func insertPlacement(index *int64, atEnd bool, anchor AnchorOptions) Placement {

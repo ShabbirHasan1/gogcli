@@ -162,7 +162,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 	c.Tab = tabID
 	insertIndex := int64(1)
 	if c.Append {
-		insertIndex = docsAppendIndex(endIndex)
+		insertIndex = docsedit.AppendIndex(endIndex)
 	}
 
 	reqs, err := docsedit.BuildWriteRequests(docsedit.WriteOptions{
@@ -403,7 +403,7 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 		return err
 	}
 	c.Tab = tabID
-	insertIndex := docsAppendIndex(endIndex)
+	insertIndex := docsedit.AppendIndex(endIndex)
 	insertedMarkdownStart := insertIndex
 	appendElements := docsmarkdown.ParseMarkdown(cleaned)
 	if insertIndex > 1 && markdownAppendNeedsParagraphBoundary(appendElements) {
@@ -615,7 +615,7 @@ type DocsUpdateCmd struct {
 	Batch        string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
-func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error { //nolint:gocyclo,cyclop // Existing command supports several placement and content modes.
+func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
@@ -675,49 +675,16 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	insertIndex := placement.Index
-	var anchor *docsResolvedAtAnchor
-	switch placement.Kind {
-	case docsedit.PlacementAnchor:
-		resolved, anchorErr := resolveDocsAtAnchor(ctx, svc, id, docsAtAnchorFlags{
-			At:         placement.Anchor.Text,
-			Occurrence: placement.Anchor.Occurrence,
-			MatchCase:  placement.Anchor.MatchCase,
-			Tab:        c.Tab,
-		})
-		if anchorErr != nil {
-			return anchorErr
-		}
-		anchor = &resolved
-		replaceStart = anchor.Match.StartIndex
-		replaceEnd = anchor.Match.EndIndex
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, id, c.Tab, placement)
+	if err != nil {
+		return err
+	}
+	insertIndex := resolvedPlacement.Index
+	c.Tab = resolvedPlacement.TabID
+	if resolvedPlacement.Range != nil {
+		replaceStart = resolvedPlacement.Range.Start
+		replaceEnd = resolvedPlacement.Range.End
 		replacing = true
-		insertIndex = replaceStart
-		c.Tab = anchor.Match.TabID
-	case docsedit.PlacementRange:
-		insertIndex = replaceStart
-		if c.Tab != "" {
-			tabID, tabErr := resolveDocsTabID(ctx, svc, id, c.Tab)
-			if tabErr != nil {
-				return tabErr
-			}
-			c.Tab = tabID
-		}
-	case docsedit.PlacementEnd:
-		endIndex, tabID, endErr := docsTargetEndIndexAndTabID(ctx, svc, id, c.Tab)
-		if endErr != nil {
-			return endErr
-		}
-		c.Tab = tabID
-		insertIndex = docsAppendIndex(endIndex)
-	case docsedit.PlacementIndex:
-		if c.Tab != "" {
-			tabID, tabErr := resolveDocsTabID(ctx, svc, id, c.Tab)
-			if tabErr != nil {
-				return tabErr
-			}
-			c.Tab = tabID
-		}
 	}
 
 	requestCount := 0
@@ -729,7 +696,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		cleaned, _ := extractMarkdownImages(text)
 		explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(cleaned)
 		if replacing {
-			loadedDoc := anchorDocumentForMarkdownReplace(anchor)
+			loadedDoc := resolvedPlacement.Document
 			if loadedDoc == nil {
 				loaded, loadErr := loadDocsTargetDocument(ctx, svc, id, c.Tab)
 				if loadErr != nil {
@@ -776,9 +743,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		reqs := docsedit.BuildUpdateRequests(text, insertIndex, c.Tab, targetRange)
 		requestCount = len(reqs)
 		batchReq := &docs.BatchUpdateDocumentRequest{Requests: reqs}
-		if anchor != nil {
-			batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
-		}
+		batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 		if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.update", batchRevision, reqs, false); queued || queueErr != nil {
 			return queueErr
 		}
@@ -865,13 +830,6 @@ func (c *DocsUpdateCmd) dryRunPayload(docID string, written int, replacing bool,
 	return payload
 }
 
-func anchorDocumentForMarkdownReplace(anchor *docsResolvedAtAnchor) *docs.Document {
-	if anchor == nil {
-		return nil
-	}
-	return anchor.Document
-}
-
 type DocsInsertCmd struct {
 	DocID      string `arg:"" name:"docId" help:"Doc ID"`
 	Content    string `arg:"" optional:"" name:"content" help:"Text to insert (or use --file / stdin)"`
@@ -948,46 +906,17 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	var insertIndex int64
-	var anchor *docsResolvedAtAnchor
-	switch placement.Kind {
-	case docsedit.PlacementAnchor:
-		match, anchorErr := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-			At:         placement.Anchor.Text,
-			Occurrence: placement.Anchor.Occurrence,
-			MatchCase:  placement.Anchor.MatchCase,
-			Tab:        c.Tab,
-		})
-		if anchorErr != nil {
-			return anchorErr
-		}
-		anchor = &match
-		insertIndex = match.Match.StartIndex
-		c.Tab = match.Match.TabID
-	case docsedit.PlacementIndex:
-		insertIndex = placement.Index
-		if c.Tab != "" {
-			tabID, tabErr := resolveDocsTabID(ctx, svc, docID, c.Tab)
-			if tabErr != nil {
-				return tabErr
-			}
-			c.Tab = tabID
-		}
-	case docsedit.PlacementEnd:
-		endIndex, tabID, endErr := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
-		if endErr != nil {
-			return endErr
-		}
-		c.Tab = tabID
-		insertIndex = docsAppendIndex(endIndex)
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	if err != nil {
+		return err
 	}
+	insertIndex := resolvedPlacement.Index
+	c.Tab = resolvedPlacement.TabID
 
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{docsedit.BuildInsertRequest(content, insertIndex, c.Tab)},
 	}
-	if anchor != nil {
-		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
-	}
+	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
 	}
@@ -1075,40 +1004,18 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if err != nil {
 		return err
 	}
-	var start, end int64
-	var anchor *docsResolvedAtAnchor
-	if placement.Kind == docsedit.PlacementAnchor {
-		match, anchorErr := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-			At:         placement.Anchor.Text,
-			Occurrence: placement.Anchor.Occurrence,
-			MatchCase:  placement.Anchor.MatchCase,
-			Tab:        c.Tab,
-		})
-		if anchorErr != nil {
-			return anchorErr
-		}
-		anchor = &match
-		start = match.Match.StartIndex
-		end = match.Match.EndIndex
-		c.Tab = match.Match.TabID
-	} else {
-		start = placement.Range.Start
-		end = placement.Range.End
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	if err != nil {
+		return err
 	}
-	if placement.Kind == docsedit.PlacementRange && c.Tab != "" {
-		tabID, tabErr := resolveDocsTabID(ctx, svc, docID, c.Tab)
-		if tabErr != nil {
-			return tabErr
-		}
-		c.Tab = tabID
-	}
+	start := resolvedPlacement.Range.Start
+	end := resolvedPlacement.Range.End
+	c.Tab = resolvedPlacement.TabID
 
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{docsedit.BuildDeleteRequest(docsedit.Range{Start: start, End: end}, c.Tab)},
 	}
-	if anchor != nil {
-		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
-	}
+	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.delete", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
 	}

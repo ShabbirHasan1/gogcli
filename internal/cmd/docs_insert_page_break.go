@@ -87,42 +87,15 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 		return err
 	}
 
-	var insertIndex int64
-	var anchor *docsResolvedAtAnchor
-	switch placement.Kind {
-	case docsedit.PlacementAnchor:
-		match, anchorErr := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-			At:         placement.Anchor.Text,
-			Occurrence: placement.Anchor.Occurrence,
-			MatchCase:  placement.Anchor.MatchCase,
-			Tab:        c.Tab,
-		})
-		if anchorErr != nil {
-			return anchorErr
-		}
-		if match.Match.InTable {
-			return usage("--at matched text inside a table; page breaks cannot be inserted inside tables")
-		}
-		anchor = &match
-		insertIndex = match.Match.StartIndex
-		c.Tab = match.Match.TabID
-	case docsedit.PlacementEnd:
-		endIndex, tabID, endErr := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
-		if endErr != nil {
-			return endErr
-		}
-		c.Tab = tabID
-		insertIndex = docsAppendIndex(endIndex)
-	case docsedit.PlacementIndex:
-		insertIndex = placement.Index
-		if c.Tab != "" {
-			tabID, tabErr := resolveDocsTabID(ctx, svc, docID, c.Tab)
-			if tabErr != nil {
-				return tabErr
-			}
-			c.Tab = tabID
-		}
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	if err != nil {
+		return err
 	}
+	if resolvedPlacement.InTable {
+		return usage("--at matched text inside a table; page breaks cannot be inserted inside tables")
+	}
+	insertIndex := resolvedPlacement.Index
+	c.Tab = resolvedPlacement.TabID
 
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{{
@@ -133,9 +106,7 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 				},
 			},
 		}},
-	}
-	if anchor != nil {
-		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
+		WriteControl: docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID),
 	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert-page-break", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr

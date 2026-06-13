@@ -188,7 +188,7 @@ func TestInsertDocsMarkdownAt_AppendsTable_IssueRepro(t *testing.T) {
 	}, "\n")
 
 	// Initial body is "Existing\n" (9 chars), so the document endIndex is 10
-	// and docsAppendIndex(10) = 9.
+	// and docsedit.AppendIndex(10) = 9.
 	const insertIdx int64 = 9
 
 	if _, _, err := insertDocsMarkdownAt(context.Background(), svc, "doc1", insertIdx, markdown, ""); err != nil {

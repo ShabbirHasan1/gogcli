@@ -355,7 +355,7 @@ func (c *DocsInsertImageCmd) resolveImageTarget(ctx context.Context, svc *docs.S
 		if err != nil {
 			return 0, nil, "", err
 		}
-		return docsAppendIndex(endIndex), nil, tabID, nil
+		return docsedit.AppendIndex(endIndex), nil, tabID, nil
 	}
 	loaded, err := loadDocsTargetDocument(ctx, svc, docID, c.Tab)
 	if err != nil {
