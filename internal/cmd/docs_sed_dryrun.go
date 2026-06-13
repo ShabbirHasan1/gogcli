@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
+	"github.com/steipete/gogcli/internal/docssed"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -74,6 +76,12 @@ func classifyExpression(expr sedExpr) string {
 		return kind
 	}
 	if expr.tableRef != 0 {
+		if expr.tableRef == math.MinInt32 {
+			if expr.replacement == "" {
+				return "delete all tables"
+			}
+			return "all tables op"
+		}
 		if expr.replacement == "" {
 			return fmt.Sprintf("delete table %d", expr.tableRef)
 		}
@@ -82,7 +90,7 @@ func classifyExpression(expr sedExpr) string {
 	if parseTableCreate(expr.replacement) != nil || parseTableFromPipes(expr.replacement) != nil {
 		return "create table"
 	}
-	if parseImageRefPattern(expr.pattern) != nil {
+	if docssed.ParseImageReference(expr.pattern) != nil {
 		return "image"
 	}
 	if expr.pattern == "^" || expr.pattern == "$" || expr.pattern == "^$" {

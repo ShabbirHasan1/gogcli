@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"testing"
 	"time"
 
@@ -696,6 +697,8 @@ func TestClassifyExpression_MoreCases(t *testing.T) {
 
 	// table op
 	assert.Equal(t, "delete table 1", classifyExpression(sedExpr{tableRef: 1}))
+	assert.Equal(t, "delete all tables", classifyExpression(sedExpr{tableRef: math.MinInt32}))
+	assert.Equal(t, "all tables op", classifyExpression(sedExpr{tableRef: math.MinInt32, replacement: "new"}))
 
 	// image
 	assert.Equal(t, "image", classifyExpression(sedExpr{pattern: "!(1)"}))

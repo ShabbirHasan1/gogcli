@@ -3,8 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"google.golang.org/api/docs/v1"
@@ -156,69 +154,12 @@ type ImageSpec struct {
 	Height  int    // in pixels, 0 if not specified
 }
 
-// ImageRefPattern holds a parsed image reference pattern (for finding existing images)
-type ImageRefPattern struct {
-	ByPosition bool           // true if matching by position (!(n))
-	Position   int            // 1-based position, negative for from-end, 0 for all (*)
-	AllImages  bool           // true if matching all images (!(*)  )
-	ByAlt      bool           // true if matching by alt text regex (![regex])
-	AltRegex   *regexp.Regexp // compiled regex for alt text matching
-}
-
 // DocImage represents an image found in the document
 type DocImage struct {
 	ObjectID     string // inline object ID or positioned object ID
 	Index        int64  // position in document
 	Alt          string // alt text if available
 	IsPositioned bool   // true if floating/positioned, false if inline
-}
-
-// parseImageRefPattern parses image reference patterns for finding existing images
-// Patterns: !(1), !(-1), !(*), ![regex], ![](1), ![](-1), ![](*)
-func parseImageRefPattern(pattern string) *ImageRefPattern {
-	// !(n) or !(*) - positional reference
-	if strings.HasPrefix(pattern, "!(") && strings.HasSuffix(pattern, ")") {
-		inner := pattern[2 : len(pattern)-1]
-		if inner == "*" {
-			return &ImageRefPattern{ByPosition: true, AllImages: true}
-		}
-		if n, err := strconv.Atoi(inner); err == nil {
-			return &ImageRefPattern{ByPosition: true, Position: n}
-		}
-		// Could be a URL, not a reference
-		if strings.HasPrefix(inner, "http://") || strings.HasPrefix(inner, "https://") {
-			return nil
-		}
-		return nil
-	}
-
-	// ![](n) or ![](*) - positional reference with empty alt
-	if strings.HasPrefix(pattern, "![](") && strings.HasSuffix(pattern, ")") {
-		inner := pattern[4 : len(pattern)-1]
-		if inner == "*" {
-			return &ImageRefPattern{ByPosition: true, AllImages: true}
-		}
-		if n, err := strconv.Atoi(inner); err == nil {
-			return &ImageRefPattern{ByPosition: true, Position: n}
-		}
-		return nil
-	}
-
-	// ![regex] - alt text regex match (no URL part)
-	if strings.HasPrefix(pattern, "![") && strings.HasSuffix(pattern, "]") && !strings.Contains(pattern, "](") {
-		regexStr := pattern[2 : len(pattern)-1]
-		if regexStr == "" {
-			return nil
-		}
-		// Compile as regex, anchor if it looks like exact match
-		re, err := regexp.Compile(regexStr)
-		if err != nil {
-			return nil
-		}
-		return &ImageRefPattern{ByAlt: true, AltRegex: re}
-	}
-
-	return nil
 }
 
 // findDocImages walks a document and returns all images with their metadata

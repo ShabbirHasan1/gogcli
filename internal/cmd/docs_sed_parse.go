@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"math"
-	"strconv"
 	"strings"
 
 	"github.com/steipete/gogcli/internal/docssed"
@@ -15,26 +13,6 @@ func parseSedExpr(raw string) (pattern, replacement string, global bool, err err
 		return "", "", false, err
 	}
 	return expression.Pattern, expression.Replacement, expression.Global, nil
-}
-
-// parseTableRef checks if a pattern is a bare table reference like |1|, |2|, |-1|, |*|.
-func parseTableRef(value string) (int, bool) {
-	value = strings.TrimSpace(value)
-	if len(value) < 3 || value[0] != '|' || value[len(value)-1] != '|' {
-		return 0, false
-	}
-	inner := value[1 : len(value)-1]
-	if strings.ContainsAny(inner, "xX") {
-		return 0, false
-	}
-	if inner == "*" {
-		return math.MinInt32, true
-	}
-	index, err := strconv.Atoi(inner)
-	if err != nil || index == 0 {
-		return 0, false
-	}
-	return index, true
 }
 
 func parseSedExprWithCell(raw string) (pattern, replacement string, global bool, cellRef *tableCellRef, err error) {
@@ -172,7 +150,7 @@ func enrichSedExpression(expression sedExpr) (sedExpr, error) {
 	}
 
 	if expression.cellRef == nil && strings.HasPrefix(expression.pattern, "{") {
-		remaining, tableRef, imageRef, err := detectBracePattern(expression.pattern)
+		remaining, tableRef, imageRef, err := docssed.DetectBraceReference(expression.pattern)
 		if err != nil {
 			return sedExpr{}, fmt.Errorf("brace pattern: %w", err)
 		}
@@ -190,22 +168,20 @@ func enrichSedExpression(expression sedExpr) (sedExpr, error) {
 			}
 		}
 		if imageRef != nil {
-			if imagePattern := braceImgToImageRefPattern(imageRef); imagePattern != nil {
-				switch {
-				case imagePattern.AllImages:
-					expression.pattern = "!(*)"
-				case imagePattern.ByPosition:
-					expression.pattern = fmt.Sprintf("!(%d)", imagePattern.Position)
-				case imagePattern.ByAlt && imagePattern.AltRegex != nil:
-					expression.pattern = fmt.Sprintf("![%s]", imageRef.Pattern)
-				}
+			switch {
+			case imageRef.AllImages:
+				expression.pattern = "!(*)"
+			case imageRef.ByPosition:
+				expression.pattern = fmt.Sprintf("!(%d)", imageRef.Position)
+			case imageRef.ByAlt && imageRef.AltRegex != nil:
+				expression.pattern = fmt.Sprintf("![%s]", imageRef.Pattern)
 			}
 		}
 	}
 
 	if expression.cellRef == nil && expression.tableRef == 0 {
-		if tableIndex, ok := parseTableRef(expression.pattern); ok {
-			expression.tableRef = tableIndex
+		if tableRef := docssed.ParseTableReference(expression.pattern); tableRef != nil {
+			braceTableToSedExpr(tableRef, &expression)
 			expression.pattern = ""
 		}
 	}
@@ -221,7 +197,7 @@ func enrichSedExpression(expression sedExpr) (sedExpr, error) {
 				expression.brace = mergeBraceSpans(spans)
 			}
 			if expression.brace != nil && expression.brace.TableRef != "" {
-				tableRef, err := parseBraceTableRef(expression.brace.TableRef)
+				tableRef, err := docssed.ParseBraceTableReference(expression.brace.TableRef)
 				if err == nil && tableRef.IsCreate {
 					if spec := braceTableToTableCreateSpec(tableRef); spec != nil {
 						if spec.header {

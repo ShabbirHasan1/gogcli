@@ -309,7 +309,7 @@ func (c *DocsSedCmd) runSingle(ctx context.Context, u *ui.UI, account, id string
 	}
 
 	// Check if pattern is an image reference (!(n), ![regex], etc.)
-	imgRef := parseImageRefPattern(expr.pattern)
+	imgRef := docssed.ParseImageReference(expr.pattern)
 	if imgRef != nil {
 		return c.runImageReplace(ctx, u, account, id, imgRef, expr.replacement, expr.global)
 	}
@@ -434,7 +434,7 @@ func (c *DocsSedCmd) runBatch(ctx context.Context, u *ui.UI, account, id string,
 			continue
 		}
 
-		imgRef := parseImageRefPattern(ie.expr.pattern)
+		imgRef := docssed.ParseImageReference(ie.expr.pattern)
 		if imgRef != nil {
 			if imgErr := c.runImageReplace(ctx, u, account, id, imgRef, ie.expr.replacement, ie.expr.global); imgErr != nil {
 				return fmt.Errorf("expression %d: %w", ie.index+1, imgErr)
@@ -539,7 +539,7 @@ func classifyExprForBatch(expr sedExpr) exprCategory {
 	if parseTableCreate(expr.replacement) != nil || parseTableFromPipes(expr.replacement) != nil {
 		return exprCatTableCreate
 	}
-	if parseImageRefPattern(expr.pattern) != nil {
+	if docssed.ParseImageReference(expr.pattern) != nil {
 		return exprCatImagePattern
 	}
 	if canUseNativeReplace(expr.replacement) && expr.global && expr.nthMatch <= 0 {
