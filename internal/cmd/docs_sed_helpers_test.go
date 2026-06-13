@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/api/docs/v1"
 
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -180,46 +179,6 @@ func TestRunDryRun_CellExpr(t *testing.T) {
 	err = cmd.runDryRun(context.Background(), u, exprs)
 	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), "cell")
-}
-
-func TestInferBulletPreset(t *testing.T) {
-	// nil doc.Lists
-	doc := &docs.Document{}
-	assert.Equal(t, bulletPresetDisc, inferBulletPreset(doc, "list1"))
-
-	// Unknown list ID
-	doc.Lists = map[string]docs.List{}
-	assert.Equal(t, bulletPresetDisc, inferBulletPreset(doc, "unknown"))
-
-	// Unordered list (default)
-	doc.Lists["list1"] = docs.List{
-		ListProperties: &docs.ListProperties{
-			NestingLevels: []*docs.NestingLevel{
-				{GlyphType: "GLYPH_TYPE_UNSPECIFIED"},
-			},
-		},
-	}
-	assert.Equal(t, bulletPresetDisc, inferBulletPreset(doc, "list1"))
-
-	// Ordered list (DECIMAL)
-	doc.Lists["list2"] = docs.List{
-		ListProperties: &docs.ListProperties{
-			NestingLevels: []*docs.NestingLevel{
-				{GlyphType: "DECIMAL"},
-			},
-		},
-	}
-	assert.Equal(t, bulletPresetNumbered, inferBulletPreset(doc, "list2"))
-
-	// Ordered list (UPPER_ALPHA)
-	doc.Lists["list3"] = docs.List{
-		ListProperties: &docs.ListProperties{
-			NestingLevels: []*docs.NestingLevel{
-				{GlyphType: "UPPER_ALPHA"},
-			},
-		},
-	}
-	assert.Equal(t, bulletPresetNumbered, inferBulletPreset(doc, "list3"))
 }
 
 func TestBuildTextStyleRequests_Superscript(t *testing.T) {

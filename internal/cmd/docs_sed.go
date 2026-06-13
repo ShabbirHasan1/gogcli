@@ -445,7 +445,7 @@ func (c *DocsSedCmd) runBatch(ctx context.Context, u *ui.UI, account, id string,
 	// leading \t, groups them with adjacent bulleted paragraphs, and re-creates
 	// bullets with merged ranges so Docs interprets tabs as nesting levels.
 	if len(manualExprs) > 0 {
-		if bulletErr := c.applyDeferredBullets(ctx, docsSvc, id); bulletErr != nil {
+		if bulletErr := docssed.NewServiceExecutor(docsSvc).ApplyDeferredBullets(ctx, id); bulletErr != nil {
 			return fmt.Errorf("apply bullets: %w", bulletErr)
 		}
 	}
