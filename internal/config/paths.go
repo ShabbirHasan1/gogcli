@@ -135,46 +135,6 @@ func LegacyClientCredentialsPathFor(client string) (string, error) {
 	return layout.LegacyClientCredentialsPathFor(client)
 }
 
-func GmailWatchDir() (string, error) {
-	if !usesXDGDefaults() && !explicitStatePath() && !hasAbsoluteEnv("XDG_STATE_HOME") {
-		return LegacyGmailWatchDir()
-	}
-
-	layout, err := currentLayoutFor(PathKindState)
-	if err != nil {
-		return "", err
-	}
-	primary := layout.PrimaryGmailWatchDir()
-	if layout.ExplicitState {
-		return primary, nil
-	}
-
-	legacyLayout, err := currentLayoutFor(PathKindConfig)
-	if err != nil {
-		return "", err
-	}
-	legacy := legacyLayout.LegacyGmailWatchDir()
-	if _, primaryErr := os.Stat(primary); os.IsNotExist(primaryErr) {
-		if st, legacyErr := os.Stat(legacy); legacyErr == nil && st.IsDir() {
-			return legacy, nil
-		}
-	}
-	return primary, nil
-}
-
-func LegacyGmailWatchDir() (string, error) {
-	layout, err := currentLayoutFor(PathKindConfig)
-	if err != nil {
-		return "", err
-	}
-
-	return layout.LegacyGmailWatchDir(), nil
-}
-
-func explicitStatePath() bool {
-	return HasExplicitStateOverride()
-}
-
 func KeepServiceAccountPath(email string) (string, error) {
 	layout, err := currentLayoutFor(PathKindData)
 	if err != nil {
@@ -241,19 +201,6 @@ func ListServiceAccountEmails() ([]string, error) {
 	}
 
 	return layout.ListServiceAccountEmails()
-}
-
-func EnsureGmailWatchDir() (string, error) {
-	dir, err := GmailWatchDir()
-	if err != nil {
-		return "", err
-	}
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("ensure gmail watch dir: %w", err)
-	}
-
-	return dir, nil
 }
 
 func uniquePaths(paths ...string) []string {

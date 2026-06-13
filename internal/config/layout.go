@@ -38,6 +38,7 @@ type Layout struct {
 	ExplicitState  bool
 	ExplicitCache  bool
 	UsesXDG        bool
+	UsesXDGState   bool
 }
 
 type Env struct {
@@ -429,6 +430,7 @@ func (r *layoutResolver) resolveLayoutFor(kinds ...PathKind) (Layout, error) {
 		ExplicitState:  r.env.hasExplicit(PathKindState),
 		ExplicitCache:  r.env.hasExplicit(PathKindCache),
 		UsesXDG:        r.usesXDG,
+		UsesXDGState:   filepath.IsAbs(strings.TrimSpace(r.env.XDGStateHome)),
 	}
 
 	for _, kind := range kinds {
@@ -453,12 +455,4 @@ func (l *Layout) setDir(kind PathKind, dir string) {
 	case PathKindCache:
 		l.CacheDir = dir
 	}
-}
-
-func usesXDGDefaults() bool {
-	return usesXDGDefaultsFor(runtime.GOOS)
-}
-
-func hasAbsoluteEnv(name string) bool {
-	return filepath.IsAbs(strings.TrimSpace(os.Getenv(name)))
 }

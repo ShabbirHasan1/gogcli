@@ -75,7 +75,7 @@ func (c *GmailWatchPullCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return dryRunErr
 	}
 
-	store, err := loadGmailWatchStore(account)
+	store, err := loadGmailWatchStore(ctx, account)
 	if err != nil {
 		return err
 	}

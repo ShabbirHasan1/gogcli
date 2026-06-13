@@ -330,6 +330,7 @@ func configureRuntimeLayout(runtime *app.Runtime, homeOverride string, kinds ...
 		}
 	}
 	runtime.Layout.UsesXDG = runtime.Layout.UsesXDG || layout.UsesXDG
+	runtime.Layout.UsesXDGState = runtime.Layout.UsesXDGState || layout.UsesXDGState
 	return nil
 }
 
@@ -351,6 +352,7 @@ func hydrateRuntimeLayoutFromConfig(runtime *app.Runtime) error {
 	mergeLayoutKind(&runtime.Layout, storeLayout, config.PathKindState)
 	mergeLayoutKind(&runtime.Layout, storeLayout, config.PathKindCache)
 	runtime.Layout.UsesXDG = runtime.Layout.UsesXDG || storeLayout.UsesXDG
+	runtime.Layout.UsesXDGState = runtime.Layout.UsesXDGState || storeLayout.UsesXDGState
 	return nil
 }
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -95,7 +94,7 @@ func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		return err
 	}
 
-	store, err := newGmailWatchStore(account)
+	store, err := newGmailWatchStore(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -118,7 +117,7 @@ func (c *GmailWatchStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	store, err := loadGmailWatchStore(account)
+	store, err := loadGmailWatchStore(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -146,7 +145,7 @@ func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	store, err := loadGmailWatchStore(account)
+	store, err := loadGmailWatchStore(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -204,9 +203,12 @@ func (c *GmailWatchStopCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if stopErr := svc.Users.Stop("me").Do(); stopErr != nil {
 		return stopErr
 	}
-	store, err := newGmailWatchStore(account)
-	if err == nil && store.path != "" {
-		_ = os.Remove(store.path)
+	store, err := newGmailWatchStore(ctx, account)
+	if err != nil {
+		return err
+	}
+	if err := store.Remove(); err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"stopped": true})
@@ -274,7 +276,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		return usage("--fetch-delay must be >= 0")
 	}
 
-	store, err := loadGmailWatchStore(account)
+	store, err := loadGmailWatchStore(ctx, account)
 	if err != nil {
 		return err
 	}

@@ -19,10 +19,7 @@ func TestGmailWatchServeCmd_UsesStoredHook(t *testing.T) {
 
 	setWatchTestConfigHome(t)
 
-	store, err := newGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	store := newGmailWatchTestStore(t, "a@b.com")
 	updateErr := store.Update(func(s *gmailWatchState) error {
 		s.Account = "a@b.com"
 		s.Hook = &gmailWatchHook{
@@ -71,10 +68,7 @@ func TestGmailWatchServeCmd_DefaultMaxBytes(t *testing.T) {
 
 	setWatchTestConfigHome(t)
 
-	store, err := newGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	store := newGmailWatchTestStore(t, "a@b.com")
 	updateErr := store.Update(func(s *gmailWatchState) error {
 		s.Account = "a@b.com"
 		return nil
@@ -119,10 +113,7 @@ func TestGmailWatchServeCmd_FetchDelaySeconds(t *testing.T) {
 
 	setWatchTestConfigHome(t)
 
-	store, err := newGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	store := newGmailWatchTestStore(t, "a@b.com")
 	updateErr := store.Update(func(s *gmailWatchState) error {
 		s.Account = "a@b.com"
 		return nil
@@ -158,10 +149,7 @@ func TestGmailWatchServeCmd_FetchDelayDuration(t *testing.T) {
 
 	setWatchTestConfigHome(t)
 
-	store, err := newGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	store := newGmailWatchTestStore(t, "a@b.com")
 	updateErr := store.Update(func(s *gmailWatchState) error {
 		s.Account = "a@b.com"
 		return nil
@@ -197,10 +185,7 @@ func TestGmailWatchServeCmd_ExcludeLabels_Disable(t *testing.T) {
 
 	setWatchTestConfigHome(t)
 
-	store, err := newGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	store := newGmailWatchTestStore(t, "a@b.com")
 	updateErr := store.Update(func(s *gmailWatchState) error {
 		s.Account = "a@b.com"
 		return nil
@@ -240,10 +225,7 @@ func TestGmailWatchServeCmd_SaveHookAndOIDC(t *testing.T) {
 
 	setWatchTestConfigHome(t)
 
-	store, err := newGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	store := newGmailWatchTestStore(t, "a@b.com")
 	updateErr := store.Update(func(s *gmailWatchState) error {
 		s.Account = "a@b.com"
 		return nil
@@ -281,10 +263,7 @@ func TestGmailWatchServeCmd_SaveHookAndOIDC(t *testing.T) {
 		t.Fatalf("expected oidc validator")
 	}
 
-	loaded, err := loadGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
+	loaded := loadGmailWatchTestStore(t, "a@b.com")
 	if loaded.Get().Hook == nil || loaded.Get().Hook.URL != "http://example.com/hook" {
 		t.Fatalf("expected hook saved, got %#v", loaded.Get().Hook)
 	}
@@ -296,10 +275,7 @@ func TestGmailWatchServeCmd_PreservesClientOverrideForRequestContexts(t *testing
 
 	setWatchTestConfigHome(t)
 
-	store, err := newGmailWatchStore("a@b.com")
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	store := newGmailWatchTestStore(t, "a@b.com")
 	updateErr := store.Update(func(s *gmailWatchState) error {
 		s.Account = "a@b.com"
 		return nil

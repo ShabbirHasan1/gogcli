@@ -34,10 +34,11 @@ func TestDerivedPaths(t *testing.T) {
 		t.Fatalf("expected keyring under %q, got %q", dataBase, keyringDir)
 	}
 
-	watchDir, err := GmailWatchDir()
+	layout, err := ResolveSystemLayoutFor("", PathKindConfig, PathKindState)
 	if err != nil {
-		t.Fatalf("GmailWatchDir: %v", err)
+		t.Fatalf("watch layout: %v", err)
 	}
+	watchDir := layout.GmailWatchDir()
 
 	if !strings.HasPrefix(watchDir, stateBase) {
 		t.Fatalf("expected watch dir under %q, got %q", stateBase, watchDir)
@@ -64,7 +65,17 @@ func TestGOGHomeSplitsConfigDataStateCache(t *testing.T) {
 		{name: "cache", fn: CacheDir, want: filepath.Join(home, "gog-home", "cache")},
 		{name: "credentials", fn: ClientCredentialsPath, want: filepath.Join(home, "gog-home", "data", "credentials.json")},
 		{name: "keyring", fn: KeyringDir, want: filepath.Join(home, "gog-home", "data", "keyring")},
-		{name: "watch", fn: GmailWatchDir, want: filepath.Join(home, "gog-home", "state", "gmail-watch")},
+		{
+			name: "watch",
+			fn: func() (string, error) {
+				layout, err := ResolveSystemLayoutFor("", PathKindConfig, PathKindState)
+				if err != nil {
+					return "", err
+				}
+				return layout.GmailWatchDir(), nil
+			},
+			want: filepath.Join(home, "gog-home", "state", "gmail-watch"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -157,10 +168,11 @@ func TestXDGStateKeepsLegacyGmailWatchFallback(t *testing.T) {
 		t.Fatalf("mkdir legacy watch dir: %v", err)
 	}
 
-	watchDir, err := GmailWatchDir()
+	layout, err := ResolveSystemLayoutFor("", PathKindConfig, PathKindState)
 	if err != nil {
-		t.Fatalf("GmailWatchDir: %v", err)
+		t.Fatalf("watch layout: %v", err)
 	}
+	watchDir := layout.GmailWatchDir()
 	if watchDir != legacyDir {
 		t.Fatalf("got %q, want legacy watch dir %q", watchDir, legacyDir)
 	}

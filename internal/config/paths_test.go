@@ -35,15 +35,6 @@ func TestPaths_CreateDirs(t *testing.T) {
 		t.Fatalf("expected keyring dir: %v", statErr)
 	}
 
-	watchDir, err := EnsureGmailWatchDir()
-	if err != nil {
-		t.Fatalf("EnsureGmailWatchDir: %v", err)
-	}
-
-	if _, statErr := os.Stat(watchDir); statErr != nil {
-		t.Fatalf("expected watch dir: %v", statErr)
-	}
-
 	credsPath, err := ClientCredentialsPath()
 	if err != nil {
 		t.Fatalf("ClientCredentialsPath: %v", err)
