@@ -245,10 +245,10 @@ func (c *DocsWriteCmd) writePlainTextResult(ctx context.Context, resp *docs.Batc
 }
 
 func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
-	cleaned, images := extractMarkdownImages(content)
+	markdown := prepareMarkdown(content)
 	plan, err := docsedit.PlanMarkdownWrite(docsedit.MarkdownWriteOptions{
-		Markdown:           cleaned,
-		ImageCount:         len(images),
+		Markdown:           markdown.cleaned,
+		ImageCount:         len(markdown.images),
 		Append:             c.Append,
 		Replace:            c.Replace,
 		Tab:                c.Tab,
@@ -261,11 +261,11 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 
 	switch plan.Mode {
 	case docsedit.MarkdownWriteDriveReplace:
-		return c.replaceMarkdownWithDrive(ctx, flags, docID, content, images, plan)
+		return c.replaceMarkdownWithDrive(ctx, flags, docID, markdown, plan)
 	case docsedit.MarkdownWriteLocalAppend:
-		return c.appendMarkdown(ctx, flags, docID, content, plan)
+		return c.appendMarkdown(ctx, flags, docID, markdown, plan)
 	case docsedit.MarkdownWriteLocalReplace:
-		return c.replaceMarkdownLocally(ctx, flags, docID, content, plan)
+		return c.replaceMarkdownLocally(ctx, flags, docID, markdown, plan)
 	default:
 		return fmt.Errorf("unsupported markdown write mode: %d", plan.Mode)
 	}
@@ -275,14 +275,13 @@ func (c *DocsWriteCmd) replaceMarkdownWithDrive(
 	ctx context.Context,
 	flags *RootFlags,
 	docID string,
-	content string,
-	images []markdownImage,
+	markdown preparedMarkdown,
 	plan docsedit.MarkdownWritePlan,
 ) error {
 	u := ui.FromContext(ctx)
 	dryRunPayload := map[string]any{
 		"document_id":   docID,
-		"written":       len(content),
+		"written":       len(markdown.source),
 		"append":        false,
 		"replace":       true,
 		"markdown":      true,
@@ -313,7 +312,7 @@ func (c *DocsWriteCmd) replaceMarkdownWithDrive(
 			driveSvc,
 			docsSvc,
 			docID,
-			content,
+			markdown,
 			plan.Tab,
 			plan.OrphanScopeWholeDocument,
 		)
@@ -351,8 +350,8 @@ func (c *DocsWriteCmd) replaceMarkdownWithDrive(
 		rewrittenHeadingLinks = count
 	}
 	if plan.InsertImages {
-		if err := insertImagesIntoDocs(ctx, docsSvc, docID, images, plan.Tab); err != nil {
-			cleanupDocsImagePlaceholders(ctx, docsSvc, docID, images, plan.Tab)
+		if err := insertImagesIntoDocs(ctx, docsSvc, docID, markdown.images, plan.Tab); err != nil {
+			cleanupDocsImagePlaceholders(ctx, docsSvc, docID, markdown.images, plan.Tab)
 			return fmt.Errorf("insert images: %w", err)
 		}
 	}
@@ -365,7 +364,7 @@ func (c *DocsWriteCmd) replaceMarkdownWithDrive(
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": updated.Id,
-			"written":    len(content),
+			"written":    len(markdown.source),
 			"replaced":   true,
 			"markdown":   true,
 		}
@@ -379,7 +378,7 @@ func (c *DocsWriteCmd) replaceMarkdownWithDrive(
 	}
 
 	u.Out().Linef("documentId\t%s", updated.Id)
-	u.Out().Linef("written\t%d", len(content))
+	u.Out().Linef("written\t%d", len(markdown.source))
 	u.Out().Linef("mode\treplaced (markdown converted)")
 	if c.Pageless {
 		u.Out().Linef("pageless\ttrue")
@@ -397,7 +396,7 @@ func (c *DocsWriteCmd) appendMarkdown(
 	ctx context.Context,
 	flags *RootFlags,
 	docID string,
-	content string,
+	markdown preparedMarkdown,
 	plan docsedit.MarkdownWritePlan,
 ) error {
 	dryRunPayload := map[string]any{
@@ -428,13 +427,7 @@ func (c *DocsWriteCmd) appendMarkdown(
 	}
 	c.Tab = tabID
 	insertIndex := docsedit.AppendIndex(endIndex)
-	insertedMarkdownStart := insertIndex
-	appendElements := docsmarkdown.ParseMarkdown(plan.Markdown)
-	if insertIndex > 1 && markdownAppendNeedsParagraphBoundary(appendElements) {
-		insertedMarkdownStart++
-	}
-
-	requestCount, inserted, err := insertDocsMarkdownAtWithOptions(ctx, svc, docID, insertIndex, content, c.Tab, true)
+	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, insertIndex, markdown, c.Tab, true)
 	if err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
@@ -454,20 +447,20 @@ func (c *DocsWriteCmd) appendMarkdown(
 			docID,
 			c.Tab,
 			plan.ExplicitHeadingAnchors,
-			insertedMarkdownStart,
+			insertResult.ContentStart,
 		)
 		if rewriteErr != nil {
 			return fmt.Errorf("rewrite heading links: %w", rewriteErr)
 		}
 		rewrittenHeadingLinks = count
-		requestCount += count
+		insertResult.RequestCount += count
 	}
 
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": docID,
-			"written":    inserted,
-			"requests":   requestCount,
+			"written":    insertResult.Inserted,
+			"requests":   insertResult.RequestCount,
 			"append":     true,
 			"index":      insertIndex,
 			"markdown":   true,
@@ -486,8 +479,8 @@ func (c *DocsWriteCmd) appendMarkdown(
 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("documentId\t%s", docID)
-	u.Out().Linef("written\t%d", inserted)
-	u.Out().Linef("requests\t%d", requestCount)
+	u.Out().Linef("written\t%d", insertResult.Inserted)
+	u.Out().Linef("requests\t%d", insertResult.RequestCount)
 	u.Out().Linef("mode\tappended (markdown converted)")
 	u.Out().Linef("index\t%d", insertIndex)
 	if rewrittenHeadingLinks > 0 {
@@ -506,7 +499,7 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 	ctx context.Context,
 	flags *RootFlags,
 	docID string,
-	content string,
+	markdown preparedMarkdown,
 	plan docsedit.MarkdownWritePlan,
 ) error {
 	dryRunPayload := map[string]any{
@@ -543,7 +536,7 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 			driveSvc,
 			svc,
 			docID,
-			content,
+			markdown,
 			plan.Tab,
 			plan.OrphanScopeWholeDocument,
 		)
@@ -586,7 +579,7 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 		}
 	}
 
-	requestCount, inserted, err := insertDocsMarkdownAtWithOptions(ctx, svc, docID, 1, content, tabID, true)
+	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, 1, markdown, tabID, true)
 	if err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
@@ -605,14 +598,14 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 			return fmt.Errorf("rewrite heading links: %w", rewriteErr)
 		}
 		rewrittenHeadingLinks = count
-		requestCount += count
+		insertResult.RequestCount += count
 	}
 
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": docID,
-			"written":    inserted,
-			"requests":   requestCount,
+			"written":    insertResult.Inserted,
+			"requests":   insertResult.RequestCount,
 			"replaced":   true,
 			"markdown":   true,
 			"tabId":      tabID,
@@ -631,8 +624,8 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("documentId\t%s", docID)
-	u.Out().Linef("written\t%d", inserted)
-	u.Out().Linef("requests\t%d", requestCount)
+	u.Out().Linef("written\t%d", insertResult.Inserted)
+	u.Out().Linef("requests\t%d", insertResult.RequestCount)
 	u.Out().Linef("mode\treplaced tab (markdown converted)")
 	u.Out().Linef("tabId\t%s", tabID)
 	if rewrittenHeadingLinks > 0 {
@@ -738,8 +731,8 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 
 	if c.Markdown {
 		var inserted int
-		cleaned, _ := extractMarkdownImages(text)
-		explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(cleaned)
+		markdown := prepareMarkdown(text)
+		explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(markdown.cleaned)
 		if replacing {
 			loadedDoc := resolvedPlacement.Document
 			if loadedDoc == nil {
@@ -750,7 +743,15 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 				c.Tab = loaded.tabID
 				loadedDoc = loaded.full
 			}
-			replacedRequests, replacedText, replaceErr := replaceDocsMarkdownRange(ctx, svc, loadedDoc, replaceStart, replaceEnd, text, c.Tab)
+			replacedRequests, replacedText, replaceErr := replacePreparedDocsMarkdownRange(
+				ctx,
+				svc,
+				loadedDoc,
+				replaceStart,
+				replaceEnd,
+				markdown,
+				c.Tab,
+			)
 			if replaceErr != nil {
 				err = replaceErr
 			} else {
@@ -758,17 +759,21 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 				requestCount = replacedRequests
 			}
 		} else {
-			insertedMarkdownStart := insertIndex
-			insertElements := docsmarkdown.ParseMarkdown(cleaned)
-			docsmarkdown.StripElementHeadingAnchors(insertElements)
-			if insertIndex > 1 && markdownAppendNeedsParagraphBoundary(insertElements) {
-				insertedMarkdownStart++
-			}
-			var insertedMarkdownEnd int64
-			requestCount, inserted, insertedMarkdownEnd, err = insertDocsMarkdownAtWithOptionsAndEnd(ctx, svc, id, insertIndex, text, c.Tab, true)
-			if err == nil && markdownMayContainHeadingLinks(cleaned) {
+			var insertResult docsMarkdownInsertResult
+			insertResult, err = insertPreparedDocsMarkdownAt(ctx, svc, id, insertIndex, markdown, c.Tab, true)
+			requestCount = insertResult.RequestCount
+			inserted = insertResult.Inserted
+			if err == nil && markdownMayContainHeadingLinks(markdown.cleaned) {
 				var rewritten int
-				rewritten, err = rewriteMarkdownHeadingLinksInRange(ctx, svc, id, c.Tab, explicitHeadingAnchors, insertedMarkdownStart, insertedMarkdownEnd)
+				rewritten, err = rewriteMarkdownHeadingLinksInRange(
+					ctx,
+					svc,
+					id,
+					c.Tab,
+					explicitHeadingAnchors,
+					insertResult.ContentStart,
+					insertResult.ContentEnd,
+				)
 				requestCount += rewritten
 			}
 		}
