@@ -3,10 +3,12 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"google.golang.org/api/docs/v1"
@@ -16,6 +18,37 @@ import (
 	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/ui"
 )
+
+type docsBatchUpdateCapture struct {
+	GetCalls int
+	Requests [][]*docs.Request
+}
+
+func newDocsBatchUpdateTestService(t *testing.T, document any) (*docs.Service, *docsBatchUpdateCapture) {
+	t.Helper()
+	capture := &docsBatchUpdateCapture{}
+	svc, _ := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			capture.GetCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(document)
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var request docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode batchUpdate: %v", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			capture.Requests = append(capture.Requests, request.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"documentId":"doc1"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return svc, capture
+}
 
 func newDocsServiceForTest(t *testing.T, h http.HandlerFunc) (*docs.Service, func()) {
 	t.Helper()
